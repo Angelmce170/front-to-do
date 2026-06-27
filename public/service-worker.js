@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-cache-v3";
+const CACHE_NAME = "todo-pwa-cache-v4";
 const APP_SHELL = [
   "/",
   "/favicon.svg",
@@ -45,7 +45,8 @@ self.addEventListener("fetch", (event) => {
       ? fetch(event.request)
           .then((response) => {
             if (response.ok) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+              const responseCopy = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseCopy));
             }
 
             return response;
@@ -57,7 +58,8 @@ self.addEventListener("fetch", (event) => {
           return fetch(event.request)
             .then((response) => {
               if (response.ok) {
-                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+                const responseCopy = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseCopy));
               }
 
               return response;
