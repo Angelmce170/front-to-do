@@ -1,7 +1,6 @@
-import {useState} from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {api, setAuth} from '../api';
-import logo from '../assets/logo.png';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api, setAuth } from "../api";
 
 
 export default function Register() {
@@ -29,45 +28,84 @@ export default function Register() {
     }
 
     return (
-        <div className="auth-wrap">
-            <div className="card">
-                <div className="brand">
-                    <img src={logo} alt="Logo" className="logo-img" />
-                    <h2>Crear Cuenta</h2>
-                    <p className="muted">Únete a To-Do App y organiza tus tareas de manera eficiente</p>
+        <main className="login-page">
+            <section className="login-shell">
+                <div className="login-brand-panel">
+                    <div className="login-brand">
+                        <span className="login-mark" aria-hidden="true">✓</span>
+                        <div>
+                            <p className="login-eyebrow">TO-DO PWA</p>
+                            <strong>Mis tareas</strong>
+                        </div>
+                    </div>
+
+                    <div className="login-welcome">
+                        <p className="login-eyebrow">NUEVA CUENTA</p>
+                        <h1>Empieza simple.</h1>
+                        <p>Crea tu cuenta y mantén tus pendientes listos para trabajar incluso sin conexión.</p>
+                    </div>
+
+                    <div className="login-status">
+                        <span />
+                        Sincronización automática al volver a internet
+                    </div>
                 </div>
-                <form className="form" onSubmit={onSubmit}>
-                    <label>Nombre completo</label>
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Ingresa tu nombre papí"
-                        required
-                    />
-                    <label> Correo electrónico </label>
-                    <input
-                        type="email"
-                        placeholder="Ingresa tu correo electrónico papí"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                    />
-                    <label>Contraseña</label>
-                    <input
-                        type="password"
-                        placeholder="Ingresa tu contraseña papí"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                    />
-                    <button type="submit" disabled={loading}>
-                        {loading ? "Registrando..." : "Registrarse"}
-                    </button>
-                    <p className="muted">¿Ya tienes una cuenta? <Link to="/">Inicia sesión</Link></p>
-                    {error && <p className="error">{error}</p>}
-                </form>
-            </div>
-        </div>
+
+                <div className="login-form-panel">
+                    <div className="login-heading">
+                        <p className="login-eyebrow">REGISTRO</p>
+                        <h2>Crear cuenta</h2>
+                        <p>Guarda tus tareas y continúa desde cualquier sesión.</p>
+                    </div>
+
+                    <form className="login-form" onSubmit={onSubmit}>
+                        <label htmlFor="name">Nombre completo</label>
+                        <input
+                            id="name"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Tu nombre"
+                            autoComplete="name"
+                            required
+                        />
+
+                        <label htmlFor="email">Correo electrónico</label>
+                        <input
+                            id="email"
+                            type="email"
+                            placeholder="nombre@correo.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            autoComplete="email"
+                            required
+                        />
+
+                        <label htmlFor="password">Contraseña</label>
+                        <input
+                            id="password"
+                            type="password"
+                            placeholder="Crea una contraseña"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoComplete="new-password"
+                            required
+                        />
+
+                        {error && <div className="login-alert">{error}</div>}
+
+                        <button type="submit" className="login-submit" disabled={loading}>
+                            {loading ? "Creando cuenta..." : "Crear cuenta"}
+                            {!loading && <span aria-hidden="true">→</span>}
+                        </button>
+                    </form>
+
+                    <div className="login-footer">
+                        <span>¿Ya tienes una cuenta?</span>
+                        <Link to="/">Inicia sesión</Link>
+                    </div>
+                </div>
+            </section>
+        </main>
     );
 }
