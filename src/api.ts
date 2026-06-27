@@ -1,8 +1,14 @@
 import axios from "axios";
 
+const API_URL =
+    import.meta.env.VITE_API_URL ||
+    (import.meta.env.DEV
+        ? "http://localhost:4000/api"
+        : "https://back-to-do-phh5.vercel.app/api");
+
 export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
-    timeout: 3500,
+    baseURL: API_URL,
+    timeout: 12000,
 });
 
 export function setAuth(token: string | null) {

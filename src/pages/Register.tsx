@@ -19,9 +19,10 @@ export default function Register() {
             const {data} = await api.post("/auth/register", {name, email, password});
             localStorage.setItem("token", data.token);
             setAuth(data.token);
-            nav("/https://www.google.com/");
-        }catch (err: any) {
-            setError(err.response?.data?.message || "Error al registrarte papi intentalo de nuevo");
+            nav("/dashboard");
+        }catch (err: unknown) {
+            const requestError = err as { response?: { data?: { message?: string } } };
+            setError(requestError.response?.data?.message || "Error al registrarte papi intentalo de nuevo");
         }finally {
             setLoading(false);
         }
