@@ -352,6 +352,7 @@ button { letter-spacing: 0; }
   min-height: 38px;
   display: inline-flex;
   align-items: center;
+  max-width: 205px;
   gap: 9px;
   border: 1px solid #435067;
   border-radius: 999px;
@@ -359,6 +360,7 @@ button { letter-spacing: 0; }
   background: rgba(255,255,255,.04);
   color: #ffffff;
   cursor: pointer;
+  overflow: hidden;
 }
 .profile-trigger:hover { background: rgba(255,255,255,.08); }
 .profile-avatar {
@@ -411,6 +413,26 @@ button { letter-spacing: 0; }
   display: block;
   margin-top: 2px;
   color: #172033;
+}
+.profile-readonly {
+  display: grid;
+  gap: 5px;
+  color: #465267;
+  font-size: 12px;
+  font-weight: 700;
+}
+.profile-readonly strong {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+  border: 1px solid #dce3ed;
+  border-radius: 7px;
+  padding: 9px 11px;
+  background: #f4f7fb;
+  color: #5c6879;
+  font-size: 13px;
+  font-weight: 750;
 }
 .change-password-button {
   width: fit-content;
@@ -764,7 +786,22 @@ button { letter-spacing: 0; }
   .dashboard-header { align-items: flex-start; flex-direction: column; gap: 12px; }
   .header-actions { width: 100%; justify-content: space-between; }
   .profile-menu { min-width: 0; }
-  .profile-name { max-width: 115px; }
+  .profile-trigger {
+    max-width: 150px;
+    gap: 6px;
+    padding: 5px 9px 5px 5px;
+  }
+  .profile-avatar {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+  .profile-name {
+    min-width: 0;
+    max-width: 92px;
+    font-size: 12px;
+  }
   .profile-dropdown {
     left: 0;
     right: auto;

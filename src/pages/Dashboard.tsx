@@ -290,9 +290,9 @@ export default function Dashboard() {
     }
 
     const name = profileForm.name.trim();
-    const email = profileForm.email.trim();
-    if (!name || !email) {
-      setProfileMessage("Nombre y correo son obligatorios.");
+    const email = profile?.email || profileForm.email.trim();
+    if (!name) {
+      setProfileMessage("El nombre es obligatorio.");
       return;
     }
 
@@ -491,15 +491,10 @@ export default function Dashboard() {
                     placeholder="Tu nombre"
                   />
                 </label>
-                <label className="field">
+                <div className="profile-readonly">
                   <span>Correo</span>
-                  <input
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })}
-                    placeholder="nombre@correo.com"
-                  />
-                </label>
+                  <strong>{profile?.email || profileForm.email || "Sin correo"}</strong>
+                </div>
 
                 <button
                   className="change-password-button"
