@@ -149,6 +149,8 @@ export default function Dashboard() {
   const [online, setOnline] = useState(navigator.onLine);
   const [profile, setProfile] = useState<UserProfile | null>(() => readStoredProfile());
   const [profileForm, setProfileForm] = useState(emptyProfile);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [notice, setNotice] = useState("");
@@ -299,7 +301,7 @@ export default function Dashboard() {
       const payload = {
         name,
         email,
-        ...(profileForm.password.trim() ? { password: profileForm.password.trim() } : {}),
+        ...(changingPassword && profileForm.password.trim() ? { password: profileForm.password.trim() } : {}),
       };
       const raw = record((await api.put("/auth/me", payload)).data);
       const user = record(raw.user);
@@ -311,6 +313,7 @@ export default function Dashboard() {
 
       setProfile(nextProfile);
       setProfileForm({ name: nextProfile.name, email: nextProfile.email, password: "" });
+      setChangingPassword(false);
       localStorage.setItem("user", JSON.stringify(nextProfile));
       setProfileMessage("Perfil actualizado.");
     } catch (err: unknown) {
@@ -445,6 +448,9 @@ export default function Dashboard() {
     return { total, done, pending: total - done };
   }, [tasks]);
 
+  const profileName = profile?.name || profile?.email || "Usuario";
+  const profileInitial = profileName.trim().charAt(0).toUpperCase() || "U";
+
   return (
     <div className="dashboard-shell">
       <header className="dashboard-header">
@@ -456,6 +462,75 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="header-actions">
+          <div className="profile-menu">
+            <button
+              className="profile-trigger"
+              type="button"
+              onClick={() => setProfileOpen((open) => !open)}
+              aria-expanded={profileOpen}
+            >
+              <span className="profile-avatar" aria-hidden="true">{profileInitial}</span>
+              <span className="profile-name">{profileName}</span>
+            </button>
+
+            {profileOpen && (
+              <form className="profile-dropdown" onSubmit={saveProfile}>
+                <div className="profile-dropdown-head">
+                  <span className="profile-avatar large" aria-hidden="true">{profileInitial}</span>
+                  <div>
+                    <p className="eyebrow">CUENTA</p>
+                    <strong>Mi perfil</strong>
+                  </div>
+                </div>
+
+                <label className="field">
+                  <span>Nombre</span>
+                  <input
+                    value={profileForm.name}
+                    onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                    placeholder="Tu nombre"
+                  />
+                </label>
+                <label className="field">
+                  <span>Correo</span>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })}
+                    placeholder="nombre@correo.com"
+                  />
+                </label>
+
+                <button
+                  className="change-password-button"
+                  type="button"
+                  onClick={() => setChangingPassword((show) => !show)}
+                >
+                  {changingPassword ? "Ocultar contraseña" : "Cambiar contraseña"}
+                </button>
+
+                {changingPassword && (
+                  <label className="field">
+                    <span>Nueva contraseña</span>
+                    <input
+                      type="password"
+                      value={profileForm.password}
+                      onChange={(event) => setProfileForm({ ...profileForm, password: event.target.value })}
+                      placeholder="Nueva contraseña"
+                      autoComplete="new-password"
+                    />
+                  </label>
+                )}
+
+                {profileMessage && <p className="inline-message">{profileMessage}</p>}
+
+                <button className="btn btn-primary profile-save-button" disabled={profileSaving}>
+                  {profileSaving ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </form>
+            )}
+          </div>
+
           <span className={online ? "connection online" : "connection offline"}>
             <span className="connection-dot" />
             {online ? "En línea" : "Sin conexión"}
@@ -476,49 +551,6 @@ export default function Dashboard() {
               <span style={{ width: `${stats.total ? (stats.done / stats.total) * 100 : 0}%` }} />
             </span>
           </div>
-        </section>
-
-        <section className="profile-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">CUENTA</p>
-              <h2>Mi perfil</h2>
-            </div>
-            {profile && <span className="result-count">{profile.name || profile.email}</span>}
-          </div>
-          <form className="profile-grid" onSubmit={saveProfile}>
-            <label className="field">
-              <span>Nombre</span>
-              <input
-                value={profileForm.name}
-                onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
-                placeholder="Tu nombre"
-              />
-            </label>
-            <label className="field">
-              <span>Correo</span>
-              <input
-                type="email"
-                value={profileForm.email}
-                onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })}
-                placeholder="nombre@correo.com"
-              />
-            </label>
-            <label className="field">
-              <span>Contraseña <small>Opcional</small></span>
-              <input
-                type="password"
-                value={profileForm.password}
-                onChange={(event) => setProfileForm({ ...profileForm, password: event.target.value })}
-                placeholder="Nueva contraseña"
-                autoComplete="new-password"
-              />
-            </label>
-            <button className="btn btn-primary add-button" disabled={profileSaving}>
-              {profileSaving ? "Guardando..." : "Guardar perfil"}
-            </button>
-          </form>
-          {profileMessage && <p className="inline-message">{profileMessage}</p>}
         </section>
 
         <section className="task-creator">
