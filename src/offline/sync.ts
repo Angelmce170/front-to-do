@@ -41,6 +41,17 @@ export async function syncNow() {
         const ops = (await getOutbox()).sort((a, b) => a.ts - b.ts); // Ordena las operaciones por su marca de tiempo para procesarlas en orden
         if(ops.length === 0) return; // No hay operaciones pendientes, no es necesario sincronizar
 
+        for(const op of ops) {
+            if(op.op !== "profile") continue;
+
+            try {
+                const {data} = await api.put("/auth/me", op.data);
+                if(data?.user) localStorage.setItem("user", JSON.stringify(data.user));
+            } catch {
+                // Si falla, se conserva en outbox y se vuelve a intentar al reconectar.
+                return;
+            }
+        }
 
         const toSync: SyncTask[] = [];
         for(const op of ops) {

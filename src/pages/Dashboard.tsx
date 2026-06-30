@@ -73,6 +73,8 @@ const enqueueUpdate = (id: string, data: Changes) =>
   enqueue({ id: "upd-" + id, op: "update", ...ids(id), data, ts: Date.now() });
 const enqueueDelete = (id: string) =>
   enqueue({ id: "del-" + id, op: "delete", ...ids(id), ts: Date.now() });
+const enqueueProfile = (data: { name: string; email: string; avatarColor: string }) =>
+  enqueue({ id: "profile-update", op: "profile", data, ts: Date.now() });
 
 function normalizeTask(value: unknown): Task {
   const task = record(value);
@@ -237,6 +239,7 @@ export default function Dashboard() {
       await loadProfile();
       await loadFromServer();
       await syncNow();
+      await loadProfile();
       await loadFromServer();
     })();
 
@@ -305,11 +308,6 @@ export default function Dashboard() {
     event.preventDefault();
     setProfileMessage("");
 
-    if (!navigator.onLine) {
-      setProfileMessage("Necesitas conexión para actualizar el perfil.");
-      return;
-    }
-
     const name = profileForm.name.trim();
     const email = profile?.email || profileForm.email.trim();
     const nextAvatarColor = profileColor(profileForm.avatarColor);
@@ -318,13 +316,46 @@ export default function Dashboard() {
       return;
     }
 
+    const localProfile = {
+      id: profile?.id,
+      name,
+      email,
+      avatarColor: nextAvatarColor,
+    };
+    const profilePayload = {
+      name,
+      email,
+      avatarColor: nextAvatarColor,
+    };
+    const password = profileForm.password.trim();
+    const updateLocalProfile = async (message: string) => {
+      setProfile(localProfile);
+      setProfileForm({
+        name: localProfile.name,
+        email: localProfile.email,
+        password: "",
+        avatarColor: localProfile.avatarColor,
+      });
+      setChangingPassword(false);
+      localStorage.setItem("user", JSON.stringify(localProfile));
+      await enqueueProfile(profilePayload);
+      setProfileMessage(message);
+    };
+
     setProfileSaving(true);
     try {
+      if (!navigator.onLine) {
+        await updateLocalProfile(
+          changingPassword && password
+            ? "Perfil guardado sin conexión. Cambia la contraseña cuando tengas internet."
+            : "Perfil guardado sin conexión. Se sincronizará al volver internet."
+        );
+        return;
+      }
+
       const payload = {
-        name,
-        email,
-        avatarColor: nextAvatarColor,
-        ...(changingPassword && profileForm.password.trim() ? { password: profileForm.password.trim() } : {}),
+        ...profilePayload,
+        ...(changingPassword && password ? { password } : {}),
       };
       const raw = record((await api.put("/auth/me", payload)).data);
       const user = record(raw.user);
@@ -347,6 +378,15 @@ export default function Dashboard() {
       setProfileMessage("Perfil actualizado.");
     } catch (err: unknown) {
       const requestError = err as { response?: { data?: { message?: string } } };
+      if (!requestError.response) {
+        await updateLocalProfile(
+          changingPassword && password
+            ? "Perfil guardado localmente. Cambia la contraseña cuando tengas internet."
+            : "Perfil guardado localmente. Se sincronizará al volver internet."
+        );
+        return;
+      }
+
       setProfileMessage(requestError.response?.data?.message || "No se pudo actualizar el perfil.");
     } finally {
       setProfileSaving(false);

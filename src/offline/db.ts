@@ -7,11 +7,17 @@ export type OutboxTaskData = {
     status?: string;
     reminderAt?: string | null;
 } & Record<string, unknown>;
+export type OutboxProfileData = {
+    name: string;
+    email: string;
+    avatarColor?: string;
+} & Record<string, unknown>;
 
 export type OutboxOp = 
     | {id: string, op:"create"; clienteId: string; data: OutboxTaskData; ts:number}
     | {id: string, op:"update"; serverId?: string; clienteId?: string; data: OutboxTaskData; ts: number}
-    | {id: string, op:"delete"; serverId?: string; clienteId?: string; ts: number};
+    | {id: string, op:"delete"; serverId?: string; clienteId?: string; ts: number}
+    | {id: "profile-update"; op:"profile"; data: OutboxProfileData; ts: number};
 
 type DBSchema ={
     tasks:{key: string, value: LocalTask};
