@@ -30,6 +30,7 @@ type UserProfile = {
   id?: string;
   name: string;
   email: string;
+  avatarColor?: string;
 };
 
 const STATUSES: Status[] = ["Pendiente", "En Progreso", "Completada"];
@@ -38,14 +39,27 @@ const FILTERS: [Filter, string][] = [
   ["active", "Activas"],
   ["completed", "Hechas"],
 ];
+const avatarColors = ["#2a8b7b", "#2563eb", "#7c3aed", "#dc2626", "#ea580c", "#475569", "#111827"];
+const avatarColorNames: Record<string, string> = {
+  "#2a8b7b": "Verde",
+  "#2563eb": "Azul",
+  "#7c3aed": "Morado",
+  "#dc2626": "Rojo",
+  "#ea580c": "Naranja",
+  "#475569": "Gris",
+  "#111827": "Negro",
+};
+const defaultAvatarColor = avatarColors[0];
 const emptyForm = { title: "", description: "", reminderAt: "" };
 const emptyEdit = { id: null as string | null, title: "", description: "", reminderAt: "" };
-const emptyProfile = { name: "", email: "", password: "" };
+const emptyProfile = { name: "", email: "", password: "", avatarColor: defaultAvatarColor };
 const notifiedKey = "todo-pwa-notified-reminders";
 
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 const isStatus = (value: unknown): value is Status =>
   typeof value === "string" && STATUSES.includes(value as Status);
+const profileColor = (value: unknown) =>
+  typeof value === "string" && avatarColors.includes(value) ? value : defaultAvatarColor;
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 const text = (value: unknown, fallback = "") =>
@@ -161,8 +175,9 @@ export default function Dashboard() {
   const loadProfile = useCallback(async () => {
     const saved = readStoredProfile();
     if (saved) {
-      setProfile(saved);
-      setProfileForm({ name: saved.name, email: saved.email, password: "" });
+      const savedColor = profileColor(saved.avatarColor);
+      setProfile({ ...saved, avatarColor: savedColor });
+      setProfileForm({ name: saved.name, email: saved.email, password: "", avatarColor: savedColor });
     }
 
     try {
@@ -172,10 +187,16 @@ export default function Dashboard() {
         id: text(user.id || user._id),
         name: text(user.name),
         email: text(user.email),
+        avatarColor: profileColor(user.avatarColor),
       };
 
       setProfile(nextProfile);
-      setProfileForm({ name: nextProfile.name, email: nextProfile.email, password: "" });
+      setProfileForm({
+        name: nextProfile.name,
+        email: nextProfile.email,
+        password: "",
+        avatarColor: nextProfile.avatarColor,
+      });
       localStorage.setItem("user", JSON.stringify(nextProfile));
     } catch {
       // Si está offline, se usa el perfil guardado localmente.
@@ -291,6 +312,7 @@ export default function Dashboard() {
 
     const name = profileForm.name.trim();
     const email = profile?.email || profileForm.email.trim();
+    const nextAvatarColor = profileColor(profileForm.avatarColor);
     if (!name) {
       setProfileMessage("El nombre es obligatorio.");
       return;
@@ -301,6 +323,7 @@ export default function Dashboard() {
       const payload = {
         name,
         email,
+        avatarColor: nextAvatarColor,
         ...(changingPassword && profileForm.password.trim() ? { password: profileForm.password.trim() } : {}),
       };
       const raw = record((await api.put("/auth/me", payload)).data);
@@ -309,10 +332,16 @@ export default function Dashboard() {
         id: text(user.id || user._id),
         name: text(user.name),
         email: text(user.email),
+        avatarColor: profileColor(text(user.avatarColor, nextAvatarColor)),
       };
 
       setProfile(nextProfile);
-      setProfileForm({ name: nextProfile.name, email: nextProfile.email, password: "" });
+      setProfileForm({
+        name: nextProfile.name,
+        email: nextProfile.email,
+        password: "",
+        avatarColor: nextProfile.avatarColor,
+      });
       setChangingPassword(false);
       localStorage.setItem("user", JSON.stringify(nextProfile));
       setProfileMessage("Perfil actualizado.");
@@ -450,6 +479,7 @@ export default function Dashboard() {
 
   const profileName = profile?.name || profile?.email || "Usuario";
   const profileInitial = profileName.trim().charAt(0).toUpperCase() || "U";
+  const profileAvatarColor = profileColor(profile?.avatarColor || profileForm.avatarColor);
 
   return (
     <div className="dashboard-shell">
@@ -469,14 +499,26 @@ export default function Dashboard() {
               onClick={() => setProfileOpen((open) => !open)}
               aria-expanded={profileOpen}
             >
-              <span className="profile-avatar" aria-hidden="true">{profileInitial}</span>
+              <span
+                className="profile-avatar"
+                style={{ backgroundColor: profileAvatarColor }}
+                aria-hidden="true"
+              >
+                {profileInitial}
+              </span>
               <span className="profile-name">{profileName}</span>
             </button>
 
             {profileOpen && (
               <form className="profile-dropdown" onSubmit={saveProfile}>
                 <div className="profile-dropdown-head">
-                  <span className="profile-avatar large" aria-hidden="true">{profileInitial}</span>
+                  <span
+                    className="profile-avatar large"
+                    style={{ backgroundColor: profileColor(profileForm.avatarColor) }}
+                    aria-hidden="true"
+                  >
+                    {profileInitial}
+                  </span>
                   <div>
                     <p className="eyebrow">CUENTA</p>
                     <strong>Mi perfil</strong>
@@ -494,6 +536,26 @@ export default function Dashboard() {
                 <div className="profile-readonly">
                   <span>Correo</span>
                   <strong>{profile?.email || profileForm.email || "Sin correo"}</strong>
+                </div>
+                <div className="avatar-color-picker">
+                  <span>Color del icono</span>
+                  <div className="avatar-color-options" aria-label="Color del icono">
+                    {avatarColors.map((color) => (
+                      <button
+                        key={color}
+                        className={
+                          profileColor(profileForm.avatarColor) === color
+                            ? "color-swatch active"
+                            : "color-swatch"
+                        }
+                        type="button"
+                        style={{ backgroundColor: color }}
+                        onClick={() => setProfileForm({ ...profileForm, avatarColor: color })}
+                        aria-label={avatarColorNames[color]}
+                        title={avatarColorNames[color]}
+                      />
+                    ))}
+                  </div>
                 </div>
 
                 <button
