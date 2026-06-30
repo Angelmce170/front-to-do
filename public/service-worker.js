@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-cache-v4";
+const CACHE_NAME = "todo-pwa-cache-v5";
 const APP_SHELL = [
   "/",
   "/favicon.svg",
@@ -66,5 +66,20 @@ self.addEventListener("fetch", (event) => {
             })
             .catch(() => caches.match("/"));
         })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ("focus" in client) return client.focus();
+        }
+
+        return clients.openWindow("/");
+      })
   );
 });

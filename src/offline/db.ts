@@ -1,9 +1,22 @@
 import {openDB} from 'idb';
 
+export type LocalTask = Record<string, unknown> & {_id: string};
+export type OutboxTaskData = {
+    title?: string;
+    description?: string | null;
+    status?: string;
+    reminderAt?: string | null;
+} & Record<string, unknown>;
+
+export type OutboxOp = 
+    | {id: string, op:"create"; clienteId: string; data: OutboxTaskData; ts:number}
+    | {id: string, op:"update"; serverId?: string; clienteId?: string; data: OutboxTaskData; ts: number}
+    | {id: string, op:"delete"; serverId?: string; clienteId?: string; ts: number};
+
 type DBSchema ={
-    tasks:{key: string, value:any};
-    outbox:{key:string, value:any};
-    meta:{key:string, value:any};
+    tasks:{key: string, value: LocalTask};
+    outbox:{key:string, value: OutboxOp};
+    meta:{key:string, value:{key: string; serverId?: string}};
 };
 
 let dbp: ReturnType<typeof openDB<DBSchema>>;
@@ -20,7 +33,7 @@ export function db(){
     }
     return dbp;
 }
-export async function cacheTasks(list:any[]){
+export async function cacheTasks(list: LocalTask[]){
     const tx = (await db()).transaction("tasks", "readwrite");
     const s = tx.objectStore("tasks");
     await s.clear();
@@ -28,7 +41,7 @@ export async function cacheTasks(list:any[]){
     await tx.done;
 }
 
-export async function putTaskLocal(task: any){await (await db()).put("tasks", task);}
+export async function putTaskLocal(task: LocalTask){await (await db()).put("tasks", task);}
 export async function getAllTasksLocal(){return (await (await db()).getAll("tasks")) || [];}
 export async function removeTaskLocal(id: string){await (await db()).delete("tasks", id);}
 
@@ -44,12 +57,6 @@ export async function promoteLocalToServer(clienteId: string, serverId: string){
     }
 }
 
-export type OutboxOp = 
-    | {id: string, op:"create"; clienteId: string; ts:number}
-    | {id: string, op:"update"; serverId?: string; clienteId: string; data: any; ts: number}
-    | {id: string, op:"delete"; serverId?: string; clienteId: string; ts: number};
-
-    
     export async function queue(op: OutboxOp) {await (await db()).put("outbox", op);}
     export async function getOutbox() {return (await (await db()).getAll("outbox")) || [];}
     export async function clearOutbox(){

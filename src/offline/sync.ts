@@ -12,6 +12,21 @@ import {
 let syncing = false; // Evita que se ejecute más de una sincronización a la vez
 let lastSyncAt = 0; // Marca de tiempo de la última sincronización exitosa. Se usa para evitar sincronizaciones muy frecuentes.
 
+type SyncTask = {
+    clienteId: string;
+    title?: string;
+    description?: string;
+    status?: string;
+    reminderAt?: string | null;
+};
+
+const optionalText = (value: unknown) =>
+    typeof value === "string" ? value : undefined;
+const textOrEmpty = (value: unknown) =>
+    typeof value === "string" ? value : "";
+const reminderValue = (value: unknown) =>
+    typeof value === "string" || value === null ? value : undefined;
+
 export async function syncNow() {
     if (!navigator.onLine) return; // No tiene sentido intentar sincronizar si no hay conexión
 
@@ -23,18 +38,19 @@ export async function syncNow() {
     syncing = true;
 
     try{
-        const ops = (await getOutbox() as any[]).sort((a, b) => a.ts - b.ts); // Ordena las operaciones por su marca de tiempo para procesarlas en orden
+        const ops = (await getOutbox()).sort((a, b) => a.ts - b.ts); // Ordena las operaciones por su marca de tiempo para procesarlas en orden
         if(ops.length === 0) return; // No hay operaciones pendientes, no es necesario sincronizar
 
 
-        const toSync: any[] = [];
+        const toSync: SyncTask[] = [];
         for(const op of ops) {
             if(op.op === "create") {
                 toSync.push({
                     clienteId: op.clienteId,
-                    title: op.data.title,
-                    description: op.data.description ?? "",
-                    status: op.data.status ?? "Pendiente",
+                    title: optionalText(op.data.title),
+                    description: textOrEmpty(op.data.description),
+                    status: optionalText(op.data.status) ?? "Pendiente",
+                    reminderAt: reminderValue(op.data.reminderAt) ?? null,
                 });
             }else if (op.op === "update") {
                 // Para las actualizaciones, necesitamos el serverId para poder actualizar la tarea correcta en el servidor. Si no lo tenemos, es que la tarea aún no se ha creado en el servidor, así que la tratamos como una creación.
@@ -42,14 +58,14 @@ export async function syncNow() {
                 if(cid){
                     toSync.push({
                         clienteId: cid,
-                        title: op.data.title,
-                        description: op.data.description,
-                        status: op.data.status,
+                        title: optionalText(op.data.title),
+                        description: optionalText(op.data.description),
+                        status: optionalText(op.data.status),
+                        reminderAt: reminderValue(op.data.reminderAt),
                 });
             } else if (op.serverId) {
                 try {
-                    await api.put(`m run dev
-                        /tasks/${op.serverId}`, op.data);
+                    await api.put(`/tasks/${op.serverId}`, op.data);
                 } catch {
                     // Si la actualización falla, no hacemos nada. La operación seguirá en la outbox y se intentará de nuevo en la próxima sincronización.
 
@@ -61,7 +77,7 @@ export async function syncNow() {
     if(toSync.length) {
         try{
             const {data} = await api.post("/tasks/bulksync", {tasks: toSync});
-            for (const map of data?._mapping || []) {
+            for (const map of data?.mapping || []) {
                 await setMapping(map.clienteId, map.serverId);
                 await promoteLocalToServer(map.clienteId, map.serverId);
             }

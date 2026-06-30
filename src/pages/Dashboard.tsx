@@ -17,12 +17,20 @@ type Task = {
   title: string;
   description?: string;
   status: Status;
+  reminderAt?: string | null;
   clienteId?: string;
   createdAt?: string;
   deleted?: boolean;
   pending?: boolean;
 };
-type Changes = Partial<Pick<Task, "title" | "description" | "status">>;
+type Changes = Partial<Pick<Task, "title" | "description" | "status">> & {
+  reminderAt?: string | null;
+};
+type UserProfile = {
+  id?: string;
+  name: string;
+  email: string;
+};
 
 const STATUSES: Status[] = ["Pendiente", "En Progreso", "Completada"];
 const FILTERS: [Filter, string][] = [
@@ -30,8 +38,10 @@ const FILTERS: [Filter, string][] = [
   ["active", "Activas"],
   ["completed", "Hechas"],
 ];
-const emptyForm = { title: "", description: "" };
-const emptyEdit = { id: null as string | null, title: "", description: "" };
+const emptyForm = { title: "", description: "", reminderAt: "" };
+const emptyEdit = { id: null as string | null, title: "", description: "", reminderAt: "" };
+const emptyProfile = { name: "", email: "", password: "" };
+const notifiedKey = "todo-pwa-notified-reminders";
 
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 const isStatus = (value: unknown): value is Status =>
@@ -52,16 +62,81 @@ const enqueueDelete = (id: string) =>
 
 function normalizeTask(value: unknown): Task {
   const task = record(value);
+  const reminderDate = task.reminderAt ? new Date(String(task.reminderAt)) : null;
+
   return {
     _id: String(task._id ?? task.id ?? crypto.randomUUID()),
     title: text(task.title, "(sin título)"),
     description: text(task.description),
     status: isStatus(task.status) ? task.status : "Pendiente",
+    reminderAt: reminderDate && !Number.isNaN(reminderDate.getTime()) ? reminderDate.toISOString() : null,
     clienteId: task.clienteId ? String(task.clienteId) : undefined,
     createdAt: task.createdAt ? String(task.createdAt) : undefined,
     deleted: Boolean(task.deleted),
     pending: Boolean(task.pending),
   };
+}
+
+function toReminderInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function fromReminderInput(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function formatReminder(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function readStoredProfile() {
+  try {
+    const saved = localStorage.getItem("user");
+    return saved ? (JSON.parse(saved) as UserProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readNotifiedReminders() {
+  try {
+    return JSON.parse(localStorage.getItem(notifiedKey) || "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writeNotifiedReminders(value: Record<string, string>) {
+  localStorage.setItem(notifiedKey, JSON.stringify(value));
+}
+
+async function showReminderNotification(task: Task) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  const title = `Recordatorio: ${task.title}`;
+  const options: NotificationOptions = {
+    body: task.description || "Tienes una tarea pendiente.",
+    icon: "/icons/icon-192x192.png",
+    tag: `todo-${task._id}-${task.reminderAt}`,
+  };
+
+  const registration =
+    "serviceWorker" in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null;
+
+  if (registration) {
+    await registration.showNotification(title, options);
+  } else {
+    new Notification(title, options);
+  }
 }
 
 export default function Dashboard() {
@@ -72,6 +147,38 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<Filter>("all");
   const [edit, setEdit] = useState(emptyEdit);
   const [online, setOnline] = useState(navigator.onLine);
+  const [profile, setProfile] = useState<UserProfile | null>(() => readStoredProfile());
+  const [profileForm, setProfileForm] = useState(emptyProfile);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    "Notification" in window ? Notification.permission : "denied"
+  );
+
+  const loadProfile = useCallback(async () => {
+    const saved = readStoredProfile();
+    if (saved) {
+      setProfile(saved);
+      setProfileForm({ name: saved.name, email: saved.email, password: "" });
+    }
+
+    try {
+      const raw = record((await api.get("/auth/me")).data);
+      const user = record(raw.user);
+      const nextProfile = {
+        id: text(user.id || user._id),
+        name: text(user.name),
+        email: text(user.email),
+      };
+
+      setProfile(nextProfile);
+      setProfileForm({ name: nextProfile.name, email: nextProfile.email, password: "" });
+      localStorage.setItem("user", JSON.stringify(nextProfile));
+    } catch {
+      // Si está offline, se usa el perfil guardado localmente.
+    }
+  }, []);
 
   const loadFromServer = useCallback(async () => {
     try {
@@ -93,6 +200,7 @@ export default function Dashboard() {
       setOnline(true);
       await syncNow();
       await loadFromServer();
+      await loadProfile();
     };
     const handleOffline = () => setOnline(false);
 
@@ -103,6 +211,7 @@ export default function Dashboard() {
       const local = await getAllTasksLocal();
       if (local.length) setTasks(local.map(normalizeTask));
       setLoading(false);
+      await loadProfile();
       await loadFromServer();
       await syncNow();
       await loadFromServer();
@@ -112,13 +221,113 @@ export default function Dashboard() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadFromServer]);
+  }, [loadFromServer, loadProfile]);
+
+  useEffect(() => {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    const notifyDueTasks = () => {
+      const notified = readNotifiedReminders();
+      const now = Date.now();
+      let changed = false;
+
+      for (const task of tasks) {
+        if (!task.reminderAt || task.status === "Completada") continue;
+
+        const reminderTime = new Date(task.reminderAt).getTime();
+        if (Number.isNaN(reminderTime) || reminderTime > now) continue;
+        if (notified[task._id] === task.reminderAt) continue;
+
+        notified[task._id] = task.reminderAt;
+        changed = true;
+        void showReminderNotification(task);
+      }
+
+      if (changed) writeNotifiedReminders(notified);
+    };
+
+    notifyDueTasks();
+    const interval = window.setInterval(notifyDueTasks, 30000);
+    return () => window.clearInterval(interval);
+  }, [tasks]);
+
+  async function requestNotifications() {
+    if (!("Notification" in window)) {
+      setNotice("Este navegador no permite notificaciones web.");
+      return false;
+    }
+
+    if (Notification.permission === "granted") {
+      setNotificationPermission("granted");
+      return true;
+    }
+
+    if (Notification.permission === "denied") {
+      setNotificationPermission("denied");
+      setNotice("Las notificaciones están bloqueadas en el navegador.");
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    setNotice(
+      permission === "granted"
+        ? "Notificaciones activadas."
+        : "No se activaron las notificaciones."
+    );
+    return permission === "granted";
+  }
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    setProfileMessage("");
+
+    if (!navigator.onLine) {
+      setProfileMessage("Necesitas conexión para actualizar el perfil.");
+      return;
+    }
+
+    const name = profileForm.name.trim();
+    const email = profileForm.email.trim();
+    if (!name || !email) {
+      setProfileMessage("Nombre y correo son obligatorios.");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const payload = {
+        name,
+        email,
+        ...(profileForm.password.trim() ? { password: profileForm.password.trim() } : {}),
+      };
+      const raw = record((await api.put("/auth/me", payload)).data);
+      const user = record(raw.user);
+      const nextProfile = {
+        id: text(user.id || user._id),
+        name: text(user.name),
+        email: text(user.email),
+      };
+
+      setProfile(nextProfile);
+      setProfileForm({ name: nextProfile.name, email: nextProfile.email, password: "" });
+      localStorage.setItem("user", JSON.stringify(nextProfile));
+      setProfileMessage("Perfil actualizado.");
+    } catch (err: unknown) {
+      const requestError = err as { response?: { data?: { message?: string } } };
+      setProfileMessage(requestError.response?.data?.message || "No se pudo actualizar el perfil.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   async function addTask(event: FormEvent) {
     event.preventDefault();
     const title = form.title.trim();
     const description = form.description.trim();
+    const reminderAt = fromReminderInput(form.reminderAt);
     if (!title) return;
+    if (reminderAt) await requestNotifications();
 
     const clienteId = crypto.randomUUID();
     const localTask = normalizeTask({
@@ -126,6 +335,7 @@ export default function Dashboard() {
       title,
       description,
       status: "Pendiente",
+      reminderAt,
       pending: true,
     });
 
@@ -136,7 +346,7 @@ export default function Dashboard() {
     if (!navigator.onLine) return enqueueCreate(clienteId, localTask);
 
     try {
-      const { data } = await api.post("/tasks", { title, description });
+      const { data } = await api.post("/tasks", { title, description, reminderAt });
       const created = normalizeTask(record(data).task ?? data);
       setTasks((current) => current.map((task) => (task._id === clienteId ? created : task)));
       await putTaskLocal(created);
@@ -152,6 +362,7 @@ export default function Dashboard() {
   async function updateTask(taskId: string, changes: Changes) {
     const current = tasks.find((task) => task._id === taskId);
     if (!current) return;
+    if (changes.reminderAt) await requestNotifications();
 
     const updated = { ...current, ...changes, pending: current.pending || !navigator.onLine };
     setTasks((list) => list.map((task) => (task._id === taskId ? updated : task)));
@@ -172,7 +383,12 @@ export default function Dashboard() {
   async function saveEdit(taskId: string) {
     const title = edit.title.trim();
     if (!title) return;
-    await updateTask(taskId, { title, description: edit.description.trim() });
+
+    await updateTask(taskId, {
+      title,
+      description: edit.description.trim(),
+      reminderAt: fromReminderInput(edit.reminderAt),
+    });
     setEdit(emptyEdit);
   }
 
@@ -192,8 +408,18 @@ export default function Dashboard() {
     }
   }
 
+  function startEdit(task: Task) {
+    setEdit({
+      id: task._id,
+      title: task.title,
+      description: task.description ?? "",
+      reminderAt: toReminderInput(task.reminderAt),
+    });
+  }
+
   function logout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setAuth(null);
     window.location.href = "/";
   }
@@ -252,11 +478,62 @@ export default function Dashboard() {
           </div>
         </section>
 
+        <section className="profile-panel">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">CUENTA</p>
+              <h2>Mi perfil</h2>
+            </div>
+            {profile && <span className="result-count">{profile.name || profile.email}</span>}
+          </div>
+          <form className="profile-grid" onSubmit={saveProfile}>
+            <label className="field">
+              <span>Nombre</span>
+              <input
+                value={profileForm.name}
+                onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                placeholder="Tu nombre"
+              />
+            </label>
+            <label className="field">
+              <span>Correo</span>
+              <input
+                type="email"
+                value={profileForm.email}
+                onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })}
+                placeholder="nombre@correo.com"
+              />
+            </label>
+            <label className="field">
+              <span>Contraseña <small>Opcional</small></span>
+              <input
+                type="password"
+                value={profileForm.password}
+                onChange={(event) => setProfileForm({ ...profileForm, password: event.target.value })}
+                placeholder="Nueva contraseña"
+                autoComplete="new-password"
+              />
+            </label>
+            <button className="btn btn-primary add-button" disabled={profileSaving}>
+              {profileSaving ? "Guardando..." : "Guardar perfil"}
+            </button>
+          </form>
+          {profileMessage && <p className="inline-message">{profileMessage}</p>}
+        </section>
+
         <section className="task-creator">
           <div className="section-heading">
             <div>
               <p className="eyebrow">CAPTURA RÁPIDA</p>
               <h2>Nueva tarea</h2>
+            </div>
+            <div className="notification-tools">
+              <span className={`permission-pill ${notificationPermission}`}>
+                {notificationPermission === "granted" ? "Notificaciones activas" : "Notificaciones"}
+              </span>
+              <button className="btn btn-compact" type="button" onClick={requestNotifications}>
+                Activar
+              </button>
             </div>
           </div>
           <form className="add-grid" onSubmit={addTask}>
@@ -277,8 +554,17 @@ export default function Dashboard() {
                 rows={2}
               />
             </label>
+            <label className="field">
+              <span>Recordatorio <small>Opcional</small></span>
+              <input
+                type="datetime-local"
+                value={form.reminderAt}
+                onChange={(event) => setForm({ ...form, reminderAt: event.target.value })}
+              />
+            </label>
             <button className="btn btn-primary add-button">+ Agregar tarea</button>
           </form>
+          {notice && <p className="inline-message">{notice}</p>}
         </section>
 
         <section className="tasks-section">
@@ -354,21 +640,33 @@ export default function Dashboard() {
                             placeholder="Descripción"
                             rows={2}
                           />
+                          <input
+                            className="edit-field"
+                            type="datetime-local"
+                            value={edit.reminderAt}
+                            onChange={(event) => setEdit({ ...edit, reminderAt: event.target.value })}
+                            title="Recordatorio"
+                          />
                         </>
                       ) : (
                         <>
                           <span
                             className="task-title"
-                            onDoubleClick={() =>
-                              setEdit({ id: task._id, title: task.title, description: task.description ?? "" })
-                            }
+                            onDoubleClick={() => startEdit(task)}
                           >
                             {task.title}
                           </span>
                           {task.description && <p className="task-description">{task.description}</p>}
-                          {(task.pending || isLocalId(task._id)) && (
-                            <span className="sync-badge" title="Aún no sincronizada">Falta sincronizar</span>
-                          )}
+                          <div className="task-badges">
+                            {task.reminderAt && (
+                              <span className="reminder-badge" title="Recordatorio">
+                                Recordar {formatReminder(task.reminderAt)}
+                              </span>
+                            )}
+                            {(task.pending || isLocalId(task._id)) && (
+                              <span className="sync-badge" title="Aún no sincronizada">Falta sincronizar</span>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
@@ -381,9 +679,7 @@ export default function Dashboard() {
                           className="icon-button"
                           title="Editar"
                           aria-label={`Editar ${task.title}`}
-                          onClick={() =>
-                            setEdit({ id: task._id, title: task.title, description: task.description ?? "" })
-                          }
+                          onClick={() => startEdit(task)}
                         >
                           ✎
                         </button>
