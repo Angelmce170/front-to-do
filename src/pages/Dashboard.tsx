@@ -53,7 +53,6 @@ const defaultAvatarColor = avatarColors[0];
 const emptyForm = { title: "", description: "", reminderAt: "" };
 const emptyEdit = { id: null as string | null, title: "", description: "", reminderAt: "" };
 const emptyProfile = { name: "", email: "", password: "", avatarColor: defaultAvatarColor };
-const notifiedKey = "todo-pwa-notified-reminders";
 
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 const isStatus = (value: unknown): value is Status =>
@@ -123,60 +122,8 @@ function readStoredProfile() {
   }
 }
 
-function readNotifiedReminders() {
-  try {
-    return JSON.parse(localStorage.getItem(notifiedKey) || "{}") as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-function writeNotifiedReminders(value: Record<string, string>) {
-  localStorage.setItem(notifiedKey, JSON.stringify(value));
-}
-
 const currentNotificationPermission = (): NotificationPermission =>
   "Notification" in window ? Notification.permission : "denied";
-
-async function getNotificationRegistration() {
-  if (!("serviceWorker" in navigator)) return null;
-
-  try {
-    const current = await navigator.serviceWorker.getRegistration();
-    if (!current) await navigator.serviceWorker.register("/service-worker.js");
-
-    return await navigator.serviceWorker.ready;
-  } catch {
-    return null;
-  }
-}
-
-async function showAppNotification(title: string, options: NotificationOptions) {
-  if (currentNotificationPermission() !== "granted") return false;
-
-  try {
-    const registration = await getNotificationRegistration();
-    if (registration) {
-      await registration.showNotification(title, options);
-      return true;
-    }
-
-    new Notification(title, options);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function showReminderNotification(task: Task) {
-  return showAppNotification(`Recordatorio: ${task.title}`, {
-    body: task.description || "Tienes una tarea pendiente.",
-    badge: "/icons/icon-192x192.png",
-    icon: "/icons/icon-192x192.png",
-    requireInteraction: true,
-    tag: `todo-${task._id}-${task.reminderAt}`,
-  });
-}
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -284,41 +231,6 @@ export default function Dashboard() {
       document.removeEventListener("visibilitychange", syncPermission);
     };
   }, []);
-
-  useEffect(() => {
-    if (notificationPermission !== "granted") return;
-
-    const notifyDueTasks = async () => {
-      if (currentNotificationPermission() !== "granted") {
-        setNotificationPermission(currentNotificationPermission());
-        return;
-      }
-
-      const notified = readNotifiedReminders();
-      const now = Date.now();
-      let changed = false;
-
-      for (const task of tasks) {
-        if (!task.reminderAt || task.status === "Completada") continue;
-
-        const reminderTime = new Date(task.reminderAt).getTime();
-        if (Number.isNaN(reminderTime) || reminderTime > now) continue;
-        if (notified[task._id] === task.reminderAt) continue;
-
-        const shown = await showReminderNotification(task);
-        if (!shown) continue;
-
-        notified[task._id] = task.reminderAt;
-        changed = true;
-      }
-
-      if (changed) writeNotifiedReminders(notified);
-    };
-
-    void notifyDueTasks();
-    const interval = window.setInterval(() => void notifyDueTasks(), 30000);
-    return () => window.clearInterval(interval);
-  }, [notificationPermission, tasks]);
 
   async function requestNotifications() {
     if (!("Notification" in window)) {

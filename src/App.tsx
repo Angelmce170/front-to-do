@@ -4,11 +4,117 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import { getAllTasksLocal, type LocalTask } from "./offline/db";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
+const notifiedKey = "todo-pwa-notified-reminders";
+
+const currentNotificationPermission = (): NotificationPermission =>
+  "Notification" in window ? Notification.permission : "denied";
+
+function readNotifiedReminders() {
+  try {
+    return JSON.parse(localStorage.getItem(notifiedKey) || "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writeNotifiedReminders(value: Record<string, string>) {
+  localStorage.setItem(notifiedKey, JSON.stringify(value));
+}
+
+async function getNotificationRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+
+  try {
+    const current = await navigator.serviceWorker.getRegistration();
+    if (!current) await navigator.serviceWorker.register("/service-worker.js");
+
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
+}
+
+async function showReminderNotification(task: LocalTask) {
+  if (currentNotificationPermission() !== "granted") return false;
+
+  const title = String(task.title || "Tarea");
+  const description = typeof task.description === "string" ? task.description : "";
+  const reminderAt = String(task.reminderAt || "");
+
+  try {
+    const registration = await getNotificationRegistration();
+    const options: NotificationOptions = {
+      body: description || "Tienes una tarea pendiente.",
+      badge: "/icons/icon-192x192.png",
+      icon: "/icons/icon-192x192.png",
+      requireInteraction: true,
+      tag: `todo-${task._id}-${reminderAt}`,
+    };
+
+    if (registration) {
+      await registration.showNotification(`Recordatorio: ${title}`, options);
+    } else {
+      new Notification(`Recordatorio: ${title}`, options);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ReminderWatcher() {
+  useEffect(() => {
+    const notifyDueTasks = async () => {
+      if (!localStorage.getItem("token") || currentNotificationPermission() !== "granted") return;
+
+      const tasks = await getAllTasksLocal();
+      const notified = readNotifiedReminders();
+      const now = Date.now();
+      let changed = false;
+
+      for (const task of tasks) {
+        const reminderAt = task.reminderAt ? String(task.reminderAt) : "";
+        if (!reminderAt || task.status === "Completada" || task.deleted) continue;
+
+        const reminderTime = new Date(reminderAt).getTime();
+        if (Number.isNaN(reminderTime) || reminderTime > now) continue;
+        if (notified[task._id] === reminderAt) continue;
+
+        const shown = await showReminderNotification(task);
+        if (!shown) continue;
+
+        notified[task._id] = reminderAt;
+        changed = true;
+      }
+
+      if (changed) writeNotifiedReminders(notified);
+    };
+
+    const notifyWhenVisible = () => {
+      if (document.visibilityState === "visible") void notifyDueTasks();
+    };
+
+    void notifyDueTasks();
+    const interval = window.setInterval(() => void notifyDueTasks(), 30000);
+    window.addEventListener("focus", notifyWhenVisible);
+    document.addEventListener("visibilitychange", notifyWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", notifyWhenVisible);
+      document.removeEventListener("visibilitychange", notifyWhenVisible);
+    };
+  }, []);
+
+  return null;
+}
 
 function MobileInstallButton() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -60,6 +166,7 @@ function MobileInstallButton() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ReminderWatcher />
       <MobileInstallButton />
       <Routes>
         <Route path="/" element={<Login />} />
