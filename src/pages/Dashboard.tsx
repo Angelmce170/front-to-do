@@ -715,17 +715,20 @@ export default function Dashboard() {
               <h2>Nueva tarea</h2>
             </div>
             <div className="notification-tools">
-              <span className={`permission-pill ${notificationPermission}`}>
-                {notificationLabel}
-              </span>
-              <button
-                className="btn btn-compact"
-                type="button"
-                onClick={() => void requestNotifications()}
-                disabled={notificationPermission === "granted"}
-              >
-                {notificationButtonLabel}
-              </button>
+              <div className="notification-actions">
+                <span className={`permission-pill ${notificationPermission}`}>
+                  {notificationLabel}
+                </span>
+                <button
+                  className="btn btn-compact"
+                  type="button"
+                  onClick={() => void requestNotifications()}
+                  disabled={notificationPermission === "granted"}
+                >
+                  {notificationButtonLabel}
+                </button>
+              </div>
+              <p>Instala la PWA para recibir recordatorios con más estabilidad.</p>
             </div>
           </div>
           <form className="add-grid" onSubmit={addTask}>

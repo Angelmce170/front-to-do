@@ -575,8 +575,23 @@ button { letter-spacing: 0; }
 .add-button { min-height: 42px; white-space: nowrap; }
 .notification-tools {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.notification-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
+}
+.notification-tools p {
+  max-width: 240px;
+  margin: 0;
+  color: #637083;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: right;
 }
 .permission-pill {
   padding: 5px 9px;
@@ -787,6 +802,7 @@ button { letter-spacing: 0; }
   .summary-strip .progress-summary { grid-column: 1 / -1; border-top: 1px solid #e7ecf2; }
   .add-grid { grid-template-columns: 1fr; }
   .notification-tools { align-items: flex-start; flex-direction: column; }
+  .notification-tools p { text-align: left; }
   .toolbar { align-items: stretch; flex-direction: column; }
   .search-box { min-width: 0; }
   .filters { width: 100%; }
