@@ -135,23 +135,34 @@ function writeNotifiedReminders(value: Record<string, string>) {
   localStorage.setItem(notifiedKey, JSON.stringify(value));
 }
 
+const currentNotificationPermission = (): NotificationPermission =>
+  "Notification" in window ? Notification.permission : "denied";
+
 async function showReminderNotification(task: Task) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (currentNotificationPermission() !== "granted") return false;
 
   const title = `Recordatorio: ${task.title}`;
   const options: NotificationOptions = {
     body: task.description || "Tienes una tarea pendiente.",
+    badge: "/icons/icon-192x192.png",
     icon: "/icons/icon-192x192.png",
+    requireInteraction: true,
     tag: `todo-${task._id}-${task.reminderAt}`,
   };
 
-  const registration =
-    "serviceWorker" in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null;
+  try {
+    const registration =
+      "serviceWorker" in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null;
 
-  if (registration) {
-    await registration.showNotification(title, options);
-  } else {
-    new Notification(title, options);
+    if (registration) {
+      await registration.showNotification(title, options);
+    } else {
+      new Notification(title, options);
+    }
+
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -171,7 +182,7 @@ export default function Dashboard() {
   const [profileMessage, setProfileMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
-    "Notification" in window ? Notification.permission : "denied"
+    currentNotificationPermission()
   );
 
   const loadProfile = useCallback(async () => {
@@ -250,9 +261,27 @@ export default function Dashboard() {
   }, [loadFromServer, loadProfile]);
 
   useEffect(() => {
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const syncPermission = () => setNotificationPermission(currentNotificationPermission());
 
-    const notifyDueTasks = () => {
+    syncPermission();
+    window.addEventListener("focus", syncPermission);
+    document.addEventListener("visibilitychange", syncPermission);
+
+    return () => {
+      window.removeEventListener("focus", syncPermission);
+      document.removeEventListener("visibilitychange", syncPermission);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (notificationPermission !== "granted") return;
+
+    const notifyDueTasks = async () => {
+      if (currentNotificationPermission() !== "granted") {
+        setNotificationPermission(currentNotificationPermission());
+        return;
+      }
+
       const notified = readNotifiedReminders();
       const now = Date.now();
       let changed = false;
@@ -264,18 +293,20 @@ export default function Dashboard() {
         if (Number.isNaN(reminderTime) || reminderTime > now) continue;
         if (notified[task._id] === task.reminderAt) continue;
 
+        const shown = await showReminderNotification(task);
+        if (!shown) continue;
+
         notified[task._id] = task.reminderAt;
         changed = true;
-        void showReminderNotification(task);
       }
 
       if (changed) writeNotifiedReminders(notified);
     };
 
-    notifyDueTasks();
-    const interval = window.setInterval(notifyDueTasks, 30000);
+    void notifyDueTasks();
+    const interval = window.setInterval(() => void notifyDueTasks(), 30000);
     return () => window.clearInterval(interval);
-  }, [tasks]);
+  }, [notificationPermission, tasks]);
 
   async function requestNotifications() {
     if (!("Notification" in window)) {
@@ -283,12 +314,13 @@ export default function Dashboard() {
       return false;
     }
 
-    if (Notification.permission === "granted") {
+    if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
+      setNotice("Notificaciones activas.");
       return true;
     }
 
-    if (Notification.permission === "denied") {
+    if (currentNotificationPermission() === "denied") {
       setNotificationPermission("denied");
       setNotice("Las notificaciones están bloqueadas en el navegador.");
       return false;
@@ -520,6 +552,18 @@ export default function Dashboard() {
   const profileName = profile?.name || profile?.email || "Usuario";
   const profileInitial = profileName.trim().charAt(0).toUpperCase() || "U";
   const profileAvatarColor = profileColor(profile?.avatarColor || profileForm.avatarColor);
+  const notificationLabel =
+    notificationPermission === "granted"
+      ? "Notificaciones activas"
+      : notificationPermission === "denied"
+        ? "Notificaciones bloqueadas"
+        : "Notificaciones";
+  const notificationButtonLabel =
+    notificationPermission === "granted"
+      ? "Activas"
+      : notificationPermission === "denied"
+        ? "Bloqueadas"
+        : "Activar";
 
   return (
     <div className="dashboard-shell">
@@ -658,10 +702,15 @@ export default function Dashboard() {
             </div>
             <div className="notification-tools">
               <span className={`permission-pill ${notificationPermission}`}>
-                {notificationPermission === "granted" ? "Notificaciones activas" : "Notificaciones"}
+                {notificationLabel}
               </span>
-              <button className="btn btn-compact" type="button" onClick={requestNotifications}>
-                Activar
+              <button
+                className="btn btn-compact"
+                type="button"
+                onClick={requestNotifications}
+                disabled={notificationPermission === "granted"}
+              >
+                {notificationButtonLabel}
               </button>
             </div>
           </div>

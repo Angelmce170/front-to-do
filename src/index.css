@@ -97,6 +97,7 @@ button { letter-spacing: 0; }
 .btn-danger { background: #fff0ee; color: #a83a34; border: 1px solid #f1c7c3; }
 .btn-danger:hover { background: #ffe4e1; }
 .btn-compact { padding: 8px 12px; font-size: 13px; }
+.btn:disabled { opacity: .65; cursor: not-allowed; transform: none; }
 .btn.primary:disabled { opacity: .6; cursor: not-allowed; }
 
 .alert {
