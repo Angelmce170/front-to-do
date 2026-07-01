@@ -320,24 +320,7 @@ export default function Dashboard() {
     return () => window.clearInterval(interval);
   }, [notificationPermission, tasks]);
 
-  async function sendTestNotification() {
-    const shown = await showAppNotification("Notificaciones activas", {
-      body: "Tu To-Do App ya puede mostrar recordatorios.",
-      badge: "/icons/icon-192x192.png",
-      icon: "/icons/icon-192x192.png",
-      requireInteraction: true,
-      tag: "todo-notification-test",
-    });
-
-    setNotice(
-      shown
-        ? "Notificación de prueba enviada."
-        : "No se pudo mostrar la notificación. En Chrome móvil deja la página abierta o instala la PWA."
-    );
-    return shown;
-  }
-
-  async function requestNotifications(showTest = false) {
+  async function requestNotifications() {
     if (!("Notification" in window)) {
       setNotice("Este navegador no permite notificaciones web.");
       return false;
@@ -346,7 +329,7 @@ export default function Dashboard() {
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
       setNotice("Notificaciones activas.");
-      return showTest ? sendTestNotification() : true;
+      return true;
     }
 
     if (currentNotificationPermission() === "denied") {
@@ -360,7 +343,7 @@ export default function Dashboard() {
 
     if (permission === "granted") {
       setNotice("Notificaciones activadas.");
-      return showTest ? sendTestNotification() : true;
+      return true;
     }
 
     setNotice("No se activaron las notificaciones.");
@@ -591,7 +574,7 @@ export default function Dashboard() {
         : "Notificaciones";
   const notificationButtonLabel =
     notificationPermission === "granted"
-      ? "Probar"
+      ? "Activas"
       : notificationPermission === "denied"
         ? "Bloqueadas"
         : "Activar";
@@ -738,7 +721,8 @@ export default function Dashboard() {
               <button
                 className="btn btn-compact"
                 type="button"
-                onClick={() => void requestNotifications(true)}
+                onClick={() => void requestNotifications()}
+                disabled={notificationPermission === "granted"}
               >
                 {notificationButtonLabel}
               </button>
