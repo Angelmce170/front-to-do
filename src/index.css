@@ -801,6 +801,11 @@ button { letter-spacing: 0; }
   .summary-strip > div:nth-child(3) { border-right: 0; }
   .summary-strip .progress-summary { grid-column: 1 / -1; border-top: 1px solid #e7ecf2; }
   .add-grid { grid-template-columns: 1fr; }
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
   .notification-tools { align-items: flex-start; flex-direction: column; }
   .notification-tools p { text-align: left; }
   .toolbar { align-items: stretch; flex-direction: column; }
@@ -811,6 +816,14 @@ button { letter-spacing: 0; }
 }
 
 @media (max-width: 560px) {
+  .mobile-install-button {
+    right: 12px;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    min-height: 42px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
   .login-page { padding: 0; background: #ffffff; }
   .login-shell { min-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
   .login-brand-panel { min-height: 138px; padding: 22px 20px; }
@@ -853,6 +866,13 @@ button { letter-spacing: 0; }
     width: min(360px, calc(100vw - 32px));
   }
   .task-creator { padding: 18px 16px; }
+  .section-heading { margin-bottom: 18px; }
+  .section-heading h2 { font-size: 22px; }
+  .notification-actions { flex-wrap: wrap; }
+  .notification-tools p {
+    max-width: none;
+    font-size: 11px;
+  }
   .summary-strip strong { font-size: 20px; }
   .summary-strip span { font-size: 10px; }
   .task-item {
