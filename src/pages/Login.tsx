@@ -13,6 +13,7 @@ export default function Login() {
   const [online, setOnline] = useState(navigator.onLine);
 
   const hasSavedSession = Boolean(localStorage.getItem("token"));
+  const canEnterOffline = hasSavedSession && !online;
 
   useEffect(() => {
     const updateStatus = () => setOnline(navigator.onLine);
@@ -40,7 +41,7 @@ export default function Login() {
 
     const savedToken = localStorage.getItem("token");
 
-    if (savedToken && (!navigator.onLine || !email.trim() || !password)) {
+    if (savedToken && !navigator.onLine) {
       enterWithSavedSession(savedToken);
       setLoading(false);
       return;
@@ -67,7 +68,7 @@ export default function Login() {
       nav("/dashboard");
     } catch (err: unknown) {
       const requestError = err as { response?: { data?: { message?: string } } };
-      if (!requestError.response && savedToken) {
+      if (!requestError.response && !navigator.onLine && savedToken) {
         enterWithSavedSession(savedToken);
         return;
       }
@@ -120,7 +121,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              required={!hasSavedSession}
+              required={!canEnterOffline}
             />
 
             <label htmlFor="password">Contraseña</label>
@@ -132,7 +133,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                required={!hasSavedSession}
+                required={!canEnterOffline}
               />
               <button
                 type="button"
@@ -150,7 +151,7 @@ export default function Login() {
               className="login-submit"
               disabled={loading}
             >
-              {loading ? "Iniciando sesión..." : hasSavedSession && !online ? "Entrar sin conexión" : "Iniciar sesión"}
+              {loading ? "Iniciando sesión..." : canEnterOffline ? "Entrar sin conexión" : "Iniciar sesión"}
               {!loading && <span aria-hidden="true">→</span>}
             </button>
           </form>
