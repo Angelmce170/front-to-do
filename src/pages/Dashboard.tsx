@@ -138,32 +138,44 @@ function writeNotifiedReminders(value: Record<string, string>) {
 const currentNotificationPermission = (): NotificationPermission =>
   "Notification" in window ? Notification.permission : "denied";
 
-async function showReminderNotification(task: Task) {
+async function getNotificationRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+
+  try {
+    const current = await navigator.serviceWorker.getRegistration();
+    if (!current) await navigator.serviceWorker.register("/service-worker.js");
+
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
+}
+
+async function showAppNotification(title: string, options: NotificationOptions) {
   if (currentNotificationPermission() !== "granted") return false;
 
-  const title = `Recordatorio: ${task.title}`;
-  const options: NotificationOptions = {
+  try {
+    const registration = await getNotificationRegistration();
+    if (registration) {
+      await registration.showNotification(title, options);
+      return true;
+    }
+
+    new Notification(title, options);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function showReminderNotification(task: Task) {
+  return showAppNotification(`Recordatorio: ${task.title}`, {
     body: task.description || "Tienes una tarea pendiente.",
     badge: "/icons/icon-192x192.png",
     icon: "/icons/icon-192x192.png",
     requireInteraction: true,
     tag: `todo-${task._id}-${task.reminderAt}`,
-  };
-
-  try {
-    const registration =
-      "serviceWorker" in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null;
-
-    if (registration) {
-      await registration.showNotification(title, options);
-    } else {
-      new Notification(title, options);
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 export default function Dashboard() {
@@ -308,7 +320,24 @@ export default function Dashboard() {
     return () => window.clearInterval(interval);
   }, [notificationPermission, tasks]);
 
-  async function requestNotifications() {
+  async function sendTestNotification() {
+    const shown = await showAppNotification("Notificaciones activas", {
+      body: "Tu To-Do App ya puede mostrar recordatorios.",
+      badge: "/icons/icon-192x192.png",
+      icon: "/icons/icon-192x192.png",
+      requireInteraction: true,
+      tag: "todo-notification-test",
+    });
+
+    setNotice(
+      shown
+        ? "Notificación de prueba enviada."
+        : "No se pudo mostrar la notificación. En Chrome móvil deja la página abierta o instala la PWA."
+    );
+    return shown;
+  }
+
+  async function requestNotifications(showTest = false) {
     if (!("Notification" in window)) {
       setNotice("Este navegador no permite notificaciones web.");
       return false;
@@ -317,23 +346,25 @@ export default function Dashboard() {
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
       setNotice("Notificaciones activas.");
-      return true;
+      return showTest ? sendTestNotification() : true;
     }
 
     if (currentNotificationPermission() === "denied") {
       setNotificationPermission("denied");
-      setNotice("Las notificaciones están bloqueadas en el navegador.");
+      setNotice("Las notificaciones están bloqueadas en Chrome para este sitio.");
       return false;
     }
 
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
-    setNotice(
-      permission === "granted"
-        ? "Notificaciones activadas."
-        : "No se activaron las notificaciones."
-    );
-    return permission === "granted";
+
+    if (permission === "granted") {
+      setNotice("Notificaciones activadas.");
+      return showTest ? sendTestNotification() : true;
+    }
+
+    setNotice("No se activaron las notificaciones.");
+    return false;
   }
 
   async function saveProfile(event: FormEvent) {
@@ -560,7 +591,7 @@ export default function Dashboard() {
         : "Notificaciones";
   const notificationButtonLabel =
     notificationPermission === "granted"
-      ? "Activas"
+      ? "Probar"
       : notificationPermission === "denied"
         ? "Bloqueadas"
         : "Activar";
@@ -707,8 +738,7 @@ export default function Dashboard() {
               <button
                 className="btn btn-compact"
                 type="button"
-                onClick={requestNotifications}
-                disabled={notificationPermission === "granted"}
+                onClick={() => void requestNotifications(true)}
               >
                 {notificationButtonLabel}
               </button>
