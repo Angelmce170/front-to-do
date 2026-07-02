@@ -11,6 +11,8 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 const notifiedKey = "todo-pwa-notified-reminders";
+const remindersChangedEvent = "todo-pwa-reminders-changed";
+const maxTimerDelay = 2_147_483_647;
 
 const currentNotificationPermission = (): NotificationPermission =>
   "Notification" in window ? Notification.permission : "denied";
@@ -25,6 +27,25 @@ function readNotifiedReminders() {
 
 function writeNotifiedReminders(value: Record<string, string>) {
   localStorage.setItem(notifiedKey, JSON.stringify(value));
+}
+
+function nextReminderDelay(tasks: LocalTask[], notified: Record<string, string>) {
+  const now = Date.now();
+  let nextTime = Number.POSITIVE_INFINITY;
+
+  for (const task of tasks) {
+    const reminderAt = task.reminderAt ? String(task.reminderAt) : "";
+    if (!reminderAt || task.status === "Completada" || task.deleted) continue;
+    if (notified[task._id] === reminderAt) continue;
+
+    const reminderTime = new Date(reminderAt).getTime();
+    if (Number.isNaN(reminderTime) || reminderTime <= now) continue;
+
+    nextTime = Math.min(nextTime, reminderTime);
+  }
+
+  if (!Number.isFinite(nextTime)) return null;
+  return Math.min(Math.max(nextTime - now + 500, 1000), maxTimerDelay);
 }
 
 async function getNotificationRegistration() {
@@ -71,6 +92,25 @@ async function showReminderNotification(task: LocalTask) {
 
 function ReminderWatcher() {
   useEffect(() => {
+    let nextReminderTimer = 0;
+
+    const clearNextReminderTimer = () => {
+      if (!nextReminderTimer) return;
+      window.clearTimeout(nextReminderTimer);
+      nextReminderTimer = 0;
+    };
+
+    const scheduleNextReminder = async () => {
+      clearNextReminderTimer();
+      if (!localStorage.getItem("token") || currentNotificationPermission() !== "granted") return;
+
+      const tasks = await getAllTasksLocal();
+      const delay = nextReminderDelay(tasks, readNotifiedReminders());
+      if (delay === null) return;
+
+      nextReminderTimer = window.setTimeout(() => void runReminderCheck(), delay);
+    };
+
     const notifyDueTasks = async () => {
       if (!localStorage.getItem("token") || currentNotificationPermission() !== "granted") return;
 
@@ -97,18 +137,27 @@ function ReminderWatcher() {
       if (changed) writeNotifiedReminders(notified);
     };
 
-    const notifyWhenVisible = () => {
-      if (document.visibilityState === "visible") void notifyDueTasks();
+    const runReminderCheck = async () => {
+      await notifyDueTasks();
+      await scheduleNextReminder();
     };
 
-    void notifyDueTasks();
-    const interval = window.setInterval(() => void notifyDueTasks(), 30000);
+    const notifyWhenVisible = () => {
+      if (document.visibilityState === "visible") void runReminderCheck();
+    };
+    const notifyWhenTasksChange = () => void runReminderCheck();
+
+    void runReminderCheck();
+    const interval = window.setInterval(() => void runReminderCheck(), 30000);
     window.addEventListener("focus", notifyWhenVisible);
+    window.addEventListener(remindersChangedEvent, notifyWhenTasksChange);
     document.addEventListener("visibilitychange", notifyWhenVisible);
 
     return () => {
       window.clearInterval(interval);
+      clearNextReminderTimer();
       window.removeEventListener("focus", notifyWhenVisible);
+      window.removeEventListener(remindersChangedEvent, notifyWhenTasksChange);
       document.removeEventListener("visibilitychange", notifyWhenVisible);
     };
   }, []);

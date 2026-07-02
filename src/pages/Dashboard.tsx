@@ -53,6 +53,7 @@ const defaultAvatarColor = avatarColors[0];
 const emptyForm = { title: "", description: "", reminderAt: "" };
 const emptyEdit = { id: null as string | null, title: "", description: "", reminderAt: "" };
 const emptyProfile = { name: "", email: "", password: "", avatarColor: defaultAvatarColor };
+const remindersChangedEvent = "todo-pwa-reminders-changed";
 
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 const isStatus = (value: unknown): value is Status =>
@@ -74,6 +75,7 @@ const enqueueDelete = (id: string) =>
   enqueue({ id: "del-" + id, op: "delete", ...ids(id), ts: Date.now() });
 const enqueueProfile = (data: { name: string; email: string; avatarColor: string }) =>
   enqueue({ id: "profile-update", op: "profile", data, ts: Date.now() });
+const notifyReminderWatcher = () => window.dispatchEvent(new Event(remindersChangedEvent));
 
 function normalizeTask(value: unknown): Task {
   const task = record(value);
@@ -181,6 +183,7 @@ export default function Dashboard() {
       const list = Array.isArray(raw.items) ? raw.items.map(normalizeTask) : [];
       setTasks(list);
       await cacheTasks(list);
+      notifyReminderWatcher();
     } catch {
       // Si falla internet, se conserva la cache local.
     } finally {
@@ -241,6 +244,7 @@ export default function Dashboard() {
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
       setNotice("Notificaciones activas.");
+      notifyReminderWatcher();
       return true;
     }
 
@@ -255,6 +259,7 @@ export default function Dashboard() {
 
     if (permission === "granted") {
       setNotice("Notificaciones activadas.");
+      notifyReminderWatcher();
       return true;
     }
 
@@ -371,6 +376,7 @@ export default function Dashboard() {
 
     setTasks((current) => [localTask, ...current]);
     await putTaskLocal(localTask);
+    notifyReminderWatcher();
     setForm(emptyForm);
 
     if (!navigator.onLine) return enqueueCreate(clienteId, localTask);
@@ -380,11 +386,13 @@ export default function Dashboard() {
       const created = normalizeTask(record(data).task ?? data);
       setTasks((current) => current.map((task) => (task._id === clienteId ? created : task)));
       await putTaskLocal(created);
+      notifyReminderWatcher();
     } catch {
       setTasks((current) =>
         current.map((task) => (task._id === clienteId ? { ...task, pending: true } : task))
       );
       await putTaskLocal({ ...localTask, pending: true });
+      notifyReminderWatcher();
       await enqueueCreate(clienteId, localTask);
     }
   }
@@ -397,6 +405,7 @@ export default function Dashboard() {
     const updated = { ...current, ...changes, pending: current.pending || !navigator.onLine };
     setTasks((list) => list.map((task) => (task._id === taskId ? updated : task)));
     await putTaskLocal(updated);
+    notifyReminderWatcher();
 
     if (!navigator.onLine) return enqueueUpdate(taskId, changes);
 
@@ -406,6 +415,7 @@ export default function Dashboard() {
       const pendingTask = { ...updated, pending: true };
       setTasks((list) => list.map((task) => (task._id === taskId ? pendingTask : task)));
       await putTaskLocal(pendingTask);
+      notifyReminderWatcher();
       await enqueueUpdate(taskId, changes);
     }
   }
@@ -426,6 +436,7 @@ export default function Dashboard() {
     const backup = tasks;
     setTasks((list) => list.filter((task) => task._id !== taskId));
     await removeTaskLocal(taskId);
+    notifyReminderWatcher();
 
     if (!navigator.onLine) return enqueueDelete(taskId);
 
@@ -434,6 +445,7 @@ export default function Dashboard() {
     } catch {
       setTasks(backup);
       await Promise.all(backup.map(putTaskLocal));
+      notifyReminderWatcher();
       await enqueueDelete(taskId);
     }
   }
