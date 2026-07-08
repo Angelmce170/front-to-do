@@ -147,6 +147,7 @@ export default function Dashboard() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     currentNotificationPermission()
   );
+  const [notificationReady, setNotificationReady] = useState(currentNotificationPermission() === "granted");
 
   const loadProfile = useCallback(async () => {
     const saved = readStoredProfile();
@@ -194,11 +195,15 @@ export default function Dashboard() {
   }, []);
 
   const registerDeviceForPush = useCallback(async (showMessage = true) => {
-    if (currentNotificationPermission() !== "granted") return false;
+    if (currentNotificationPermission() !== "granted") {
+      setNotificationReady(false);
+      return false;
+    }
 
     if (showMessage) setNotificationSaving(true);
     const pushReady = await registerWebPushSubscription();
     if (showMessage) setNotificationSaving(false);
+    setNotificationReady(pushReady);
 
     if (showMessage) {
       setNotice(
@@ -212,9 +217,14 @@ export default function Dashboard() {
   }, []);
 
   const registerDeviceForPushSilently = useCallback(async () => {
-    if (currentNotificationPermission() !== "granted") return false;
+    if (currentNotificationPermission() !== "granted") {
+      setNotificationReady(false);
+      return false;
+    }
 
-    return registerWebPushSubscription();
+    const pushReady = await registerWebPushSubscription();
+    setNotificationReady(pushReady);
+    return pushReady;
   }, []);
 
   useEffect(() => {
@@ -250,7 +260,11 @@ export default function Dashboard() {
   }, [loadFromServer, loadProfile, registerDeviceForPushSilently]);
 
   useEffect(() => {
-    const syncPermission = () => setNotificationPermission(currentNotificationPermission());
+    const syncPermission = () => {
+      const permission = currentNotificationPermission();
+      setNotificationPermission(permission);
+      if (permission !== "granted") setNotificationReady(false);
+    };
 
     syncPermission();
     window.addEventListener("focus", syncPermission);
@@ -265,10 +279,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (notificationPermission !== "granted") return;
 
-    void registerDeviceForPushSilently();
+    const timer = window.setTimeout(() => {
+      void registerDeviceForPushSilently();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [notificationPermission, registerDeviceForPushSilently]);
 
-  async function requestNotifications() {
+  async function requestNotifications(options: { silentWhenGranted?: boolean } = {}) {
     if (!("Notification" in window)) {
       setNotice("Este navegador no permite notificaciones web.");
       return false;
@@ -276,7 +294,7 @@ export default function Dashboard() {
 
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
-      await registerDeviceForPush();
+      await (options.silentWhenGranted ? registerDeviceForPushSilently() : registerDeviceForPush());
       notifyReminderWatcher();
       return true;
     }
@@ -395,7 +413,7 @@ export default function Dashboard() {
     const description = form.description.trim();
     const reminderAt = fromReminderInput(form.reminderAt);
     if (!title) return;
-    if (reminderAt) await requestNotifications();
+    if (reminderAt) await requestNotifications({ silentWhenGranted: true });
 
     const clienteId = crypto.randomUUID();
     const localTask = normalizeTask({
@@ -433,7 +451,7 @@ export default function Dashboard() {
   async function updateTask(taskId: string, changes: Changes) {
     const current = tasks.find((task) => task._id === taskId);
     if (!current) return;
-    if (changes.reminderAt) await requestNotifications();
+    if (changes.reminderAt) await requestNotifications({ silentWhenGranted: true });
 
     const updated = { ...current, ...changes, pending: current.pending || !navigator.onLine };
     setTasks((list) => list.map((task) => (task._id === taskId ? updated : task)));
@@ -524,18 +542,19 @@ export default function Dashboard() {
   const profileName = profile?.name || profile?.email || "Usuario";
   const profileInitial = profileName.trim().charAt(0).toUpperCase() || "U";
   const profileAvatarColor = profileColor(profile?.avatarColor || profileForm.avatarColor);
+  const notificationsActive = notificationPermission === "granted" && notificationReady;
   const notificationLabel =
-    notificationPermission === "granted"
+    notificationsActive
       ? "Notificaciones activas"
       : notificationPermission === "denied"
         ? "Notificaciones bloqueadas"
-        : "Notificaciones";
+        : notificationPermission === "granted"
+          ? "Activa recordatorios"
+          : "Notificaciones";
   const notificationButtonLabel =
     notificationSaving
-      ? "Registrando..."
-      : notificationPermission === "granted"
-        ? "Registrar"
-        : notificationPermission === "denied"
+      ? "Activando..."
+      : notificationPermission === "denied"
         ? "Bloqueadas"
         : "Activar";
 
@@ -679,14 +698,16 @@ export default function Dashboard() {
                 <span className={`permission-pill ${notificationPermission}`}>
                   {notificationLabel}
                 </span>
-                <button
-                  className="btn btn-compact"
-                  type="button"
-                  onClick={() => void requestNotifications()}
-                  disabled={notificationSaving || notificationPermission === "denied"}
-                >
-                  {notificationButtonLabel}
-                </button>
+                {!notificationsActive && (
+                  <button
+                    className="btn btn-compact"
+                    type="button"
+                    onClick={() => void requestNotifications()}
+                    disabled={notificationSaving || notificationPermission === "denied"}
+                  >
+                    {notificationButtonLabel}
+                  </button>
+                )}
               </div>
               <p>Instala la PWA para recibir recordatorios con más estabilidad.</p>
             </div>
