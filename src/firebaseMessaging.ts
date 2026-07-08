@@ -17,6 +17,12 @@ export function isFirebaseMessagingConfigured() {
   return Object.values(firebaseConfig).every(Boolean) && Boolean(vapidKey);
 }
 
+export function firebaseMessagingConfigMessage() {
+  if (isFirebaseMessagingConfigured()) return "";
+
+  return "Falta configurar Firebase en Vercel del front.";
+}
+
 async function getMessagingInstance(): Promise<Messaging | null> {
   if (!isFirebaseMessagingConfigured()) return null;
 

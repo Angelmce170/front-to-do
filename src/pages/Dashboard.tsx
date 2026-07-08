@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, setAuth } from "../api";
-import { isFirebaseMessagingConfigured, registerFcmToken, unregisterFcmToken } from "../firebaseMessaging";
+import {
+  firebaseMessagingConfigMessage,
+  isFirebaseMessagingConfigured,
+  registerFcmToken,
+  unregisterFcmToken,
+} from "../firebaseMessaging";
 import {
   cacheTasks,
   getAllTasksLocal,
@@ -143,6 +148,7 @@ export default function Dashboard() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [notice, setNotice] = useState("");
+  const [notificationSaving, setNotificationSaving] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     currentNotificationPermission()
   );
@@ -192,6 +198,35 @@ export default function Dashboard() {
     }
   }, []);
 
+  const registerDeviceForPush = useCallback(async (showMessage = true) => {
+    if (currentNotificationPermission() !== "granted") return false;
+
+    if (!isFirebaseMessagingConfigured()) {
+      if (showMessage) setNotice(firebaseMessagingConfigMessage());
+      return false;
+    }
+
+    if (showMessage) setNotificationSaving(true);
+    const fcmReady = await registerFcmToken();
+    if (showMessage) setNotificationSaving(false);
+
+    if (showMessage) {
+      setNotice(
+        fcmReady
+          ? "Dispositivo registrado para recordatorios."
+          : "No se pudo registrar este dispositivo. Revisa Firebase del front."
+      );
+    }
+
+    return fcmReady;
+  }, []);
+
+  const registerDeviceForPushSilently = useCallback(async () => {
+    if (currentNotificationPermission() !== "granted" || !isFirebaseMessagingConfigured()) return false;
+
+    return registerFcmToken();
+  }, []);
+
   useEffect(() => {
     setAuth(localStorage.getItem("token"));
 
@@ -200,6 +235,7 @@ export default function Dashboard() {
       await syncNow();
       await loadFromServer();
       await loadProfile();
+      if (currentNotificationPermission() === "granted") void registerDeviceForPushSilently();
     };
     const handleOffline = () => setOnline(false);
 
@@ -221,7 +257,7 @@ export default function Dashboard() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadFromServer, loadProfile]);
+  }, [loadFromServer, loadProfile, registerDeviceForPushSilently]);
 
   useEffect(() => {
     const syncPermission = () => setNotificationPermission(currentNotificationPermission());
@@ -237,10 +273,10 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (notificationPermission !== "granted" || !isFirebaseMessagingConfigured()) return;
+    if (notificationPermission !== "granted") return;
 
-    void registerFcmToken();
-  }, [notificationPermission]);
+    void registerDeviceForPushSilently();
+  }, [notificationPermission, registerDeviceForPushSilently]);
 
   async function requestNotifications() {
     if (!("Notification" in window)) {
@@ -250,12 +286,7 @@ export default function Dashboard() {
 
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
-      const fcmReady = await registerFcmToken();
-      setNotice(
-        isFirebaseMessagingConfigured() && !fcmReady
-          ? "Notificaciones activas, falta terminar Firebase."
-          : "Notificaciones activas."
-      );
+      await registerDeviceForPush();
       notifyReminderWatcher();
       return true;
     }
@@ -270,12 +301,7 @@ export default function Dashboard() {
     setNotificationPermission(permission);
 
     if (permission === "granted") {
-      const fcmReady = await registerFcmToken();
-      setNotice(
-        isFirebaseMessagingConfigured() && !fcmReady
-          ? "Notificaciones activadas, falta terminar Firebase."
-          : "Notificaciones activadas."
-      );
+      await registerDeviceForPush();
       notifyReminderWatcher();
       return true;
     }
@@ -515,9 +541,11 @@ export default function Dashboard() {
         ? "Notificaciones bloqueadas"
         : "Notificaciones";
   const notificationButtonLabel =
-    notificationPermission === "granted"
-      ? "Activas"
-      : notificationPermission === "denied"
+    notificationSaving
+      ? "Registrando..."
+      : notificationPermission === "granted"
+        ? "Registrar"
+        : notificationPermission === "denied"
         ? "Bloqueadas"
         : "Activar";
 
@@ -665,7 +693,7 @@ export default function Dashboard() {
                   className="btn btn-compact"
                   type="button"
                   onClick={() => void requestNotifications()}
-                  disabled={notificationPermission === "granted"}
+                  disabled={notificationSaving || notificationPermission === "denied"}
                 >
                   {notificationButtonLabel}
                 </button>
