@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, setAuth } from "../api";
+import { isFirebaseMessagingConfigured, registerFcmToken, unregisterFcmToken } from "../firebaseMessaging";
 import {
   cacheTasks,
   getAllTasksLocal,
@@ -235,6 +236,12 @@ export default function Dashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (notificationPermission !== "granted" || !isFirebaseMessagingConfigured()) return;
+
+    void registerFcmToken();
+  }, [notificationPermission]);
+
   async function requestNotifications() {
     if (!("Notification" in window)) {
       setNotice("Este navegador no permite notificaciones web.");
@@ -243,7 +250,12 @@ export default function Dashboard() {
 
     if (currentNotificationPermission() === "granted") {
       setNotificationPermission("granted");
-      setNotice("Notificaciones activas.");
+      const fcmReady = await registerFcmToken();
+      setNotice(
+        isFirebaseMessagingConfigured() && !fcmReady
+          ? "Notificaciones activas, falta terminar Firebase."
+          : "Notificaciones activas."
+      );
       notifyReminderWatcher();
       return true;
     }
@@ -258,7 +270,12 @@ export default function Dashboard() {
     setNotificationPermission(permission);
 
     if (permission === "granted") {
-      setNotice("Notificaciones activadas.");
+      const fcmReady = await registerFcmToken();
+      setNotice(
+        isFirebaseMessagingConfigured() && !fcmReady
+          ? "Notificaciones activadas, falta terminar Firebase."
+          : "Notificaciones activadas."
+      );
       notifyReminderWatcher();
       return true;
     }
@@ -459,7 +476,8 @@ export default function Dashboard() {
     });
   }
 
-  function logout() {
+  async function logout() {
+    await unregisterFcmToken();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setAuth(null);
@@ -614,7 +632,7 @@ export default function Dashboard() {
             <span className="connection-dot" />
             {online ? "En línea" : "Sin conexión"}
           </span>
-          <button className="btn btn-danger btn-compact" onClick={logout}>Salir</button>
+          <button className="btn btn-danger btn-compact" onClick={() => void logout()}>Salir</button>
         </div>
       </header>
 

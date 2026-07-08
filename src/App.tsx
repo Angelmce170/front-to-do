@@ -4,6 +4,8 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import { api } from "./api";
+import { isFirebaseMessagingConfigured, listenForFirebaseMessages } from "./firebaseMessaging";
 import { getAllTasksLocal, type LocalTask } from "./offline/db";
 
 type BeforeInstallPromptEvent = Event & {
@@ -27,6 +29,39 @@ function readNotifiedReminders() {
 
 function writeNotifiedReminders(value: Record<string, string>) {
   localStorage.setItem(notifiedKey, JSON.stringify(value));
+}
+
+function dueReminderTasks(tasks: LocalTask[], notified: Record<string, string>) {
+  const now = Date.now();
+
+  return tasks.filter((task) => {
+    const reminderAt = task.reminderAt ? String(task.reminderAt) : "";
+    if (!reminderAt || task.status === "Completada" || task.deleted) return false;
+    if (notified[task._id] === reminderAt) return false;
+
+    const reminderTime = new Date(reminderAt).getTime();
+    return !Number.isNaN(reminderTime) && reminderTime <= now;
+  });
+}
+
+async function sendDueRemindersWithFirebase(notified: Record<string, string>) {
+  if (!isFirebaseMessagingConfigured() || !navigator.onLine) return false;
+
+  try {
+    const { data } = await api.post("/notifications/send-due");
+    const sent = Array.isArray(data?.sent) ? data.sent : [];
+
+    for (const item of sent) {
+      const taskId = typeof item?.taskId === "string" ? item.taskId : "";
+      const reminderAt = typeof item?.reminderAt === "string" ? item.reminderAt : "";
+      if (taskId && reminderAt) notified[taskId] = reminderAt;
+    }
+
+    if (sent.length) writeNotifiedReminders(notified);
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 function nextReminderDelay(tasks: LocalTask[], notified: Record<string, string>) {
@@ -116,16 +151,17 @@ function ReminderWatcher() {
 
       const tasks = await getAllTasksLocal();
       const notified = readNotifiedReminders();
-      const now = Date.now();
+      const dueTasks = dueReminderTasks(tasks, notified);
       let changed = false;
+      if (!dueTasks.length) return;
 
-      for (const task of tasks) {
+      if (isFirebaseMessagingConfigured()) {
+        await sendDueRemindersWithFirebase(notified);
+        return;
+      }
+
+      for (const task of dueTasks) {
         const reminderAt = task.reminderAt ? String(task.reminderAt) : "";
-        if (!reminderAt || task.status === "Completada" || task.deleted) continue;
-
-        const reminderTime = new Date(reminderAt).getTime();
-        if (Number.isNaN(reminderTime) || reminderTime > now) continue;
-        if (notified[task._id] === reminderAt) continue;
 
         const shown = await showReminderNotification(task);
         if (!shown) continue;
@@ -160,6 +196,20 @@ function ReminderWatcher() {
       window.removeEventListener(remindersChangedEvent, notifyWhenTasksChange);
       document.removeEventListener("visibilitychange", notifyWhenVisible);
     };
+  }, []);
+
+  return null;
+}
+
+function FirebaseForegroundListener() {
+  useEffect(() => {
+    let stopListening: (() => void) | undefined;
+
+    void listenForFirebaseMessages().then((stop) => {
+      stopListening = stop;
+    });
+
+    return () => stopListening?.();
   }, []);
 
   return null;
@@ -216,6 +266,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ReminderWatcher />
+      <FirebaseForegroundListener />
       <MobileInstallButton />
       <Routes>
         <Route path="/" element={<Login />} />

@@ -69,17 +69,50 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = {};
+  }
+
+  const data = payload.data || payload.notification || payload;
+  const title = data.title || "Recordatorio";
+  const body = data.body || "Tienes una tarea pendiente.";
+  const url = data.url || "/dashboard";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      badge: "/icons/icon-192x192.png",
+      icon: data.icon || "/icons/icon-192x192.png",
+      requireInteraction: true,
+      renotify: false,
+      tag: data.tag || data.taskId || "todo-reminder",
+      data: { url }
+    })
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
+
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
+          if ("navigate" in client && "focus" in client) {
+            return client.navigate(targetUrl).then(() => client.focus());
+          }
+
           if ("focus" in client) return client.focus();
         }
 
-        return clients.openWindow("/");
+        return clients.openWindow(targetUrl);
       })
   );
 });
