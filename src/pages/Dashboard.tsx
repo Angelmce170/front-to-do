@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, setAuth } from "../api";
-import {
-  firebaseMessagingConfigMessage,
-  isFirebaseMessagingConfigured,
-  registerFcmToken,
-  unregisterFcmToken,
-} from "../firebaseMessaging";
+import { registerWebPushSubscription, unregisterWebPushSubscription, webPushConfigMessage } from "../webPush";
 import {
   cacheTasks,
   getAllTasksLocal,
@@ -201,30 +196,25 @@ export default function Dashboard() {
   const registerDeviceForPush = useCallback(async (showMessage = true) => {
     if (currentNotificationPermission() !== "granted") return false;
 
-    if (!isFirebaseMessagingConfigured()) {
-      if (showMessage) setNotice(firebaseMessagingConfigMessage());
-      return false;
-    }
-
     if (showMessage) setNotificationSaving(true);
-    const fcmReady = await registerFcmToken();
+    const pushReady = await registerWebPushSubscription();
     if (showMessage) setNotificationSaving(false);
 
     if (showMessage) {
       setNotice(
-        fcmReady
+        pushReady
           ? "Dispositivo registrado para recordatorios."
-          : "No se pudo registrar este dispositivo. Revisa Firebase del front."
+          : webPushConfigMessage()
       );
     }
 
-    return fcmReady;
+    return pushReady;
   }, []);
 
   const registerDeviceForPushSilently = useCallback(async () => {
-    if (currentNotificationPermission() !== "granted" || !isFirebaseMessagingConfigured()) return false;
+    if (currentNotificationPermission() !== "granted") return false;
 
-    return registerFcmToken();
+    return registerWebPushSubscription();
   }, []);
 
   useEffect(() => {
@@ -503,7 +493,7 @@ export default function Dashboard() {
   }
 
   async function logout() {
-    await unregisterFcmToken();
+    await unregisterWebPushSubscription();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setAuth(null);

@@ -5,7 +5,6 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { api } from "./api";
-import { isFirebaseMessagingConfigured, listenForFirebaseMessages } from "./firebaseMessaging";
 import { getAllTasksLocal, type LocalTask } from "./offline/db";
 
 type BeforeInstallPromptEvent = Event & {
@@ -44,8 +43,8 @@ function dueReminderTasks(tasks: LocalTask[], notified: Record<string, string>) 
   });
 }
 
-async function sendDueRemindersWithFirebase(notified: Record<string, string>) {
-  if (!isFirebaseMessagingConfigured() || !navigator.onLine) return false;
+async function sendDueRemindersWithWebPush(notified: Record<string, string>) {
+  if (!navigator.onLine) return false;
 
   try {
     const { data } = await api.post("/notifications/send-due");
@@ -58,9 +57,9 @@ async function sendDueRemindersWithFirebase(notified: Record<string, string>) {
     }
 
     if (sent.length) writeNotifiedReminders(notified);
-    return true;
+    return sent.length > 0;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -81,48 +80,6 @@ function nextReminderDelay(tasks: LocalTask[], notified: Record<string, string>)
 
   if (!Number.isFinite(nextTime)) return null;
   return Math.min(Math.max(nextTime - now + 500, 1000), maxTimerDelay);
-}
-
-async function getNotificationRegistration() {
-  if (!("serviceWorker" in navigator)) return null;
-
-  try {
-    const current = await navigator.serviceWorker.getRegistration();
-    if (!current) await navigator.serviceWorker.register("/service-worker.js");
-
-    return await navigator.serviceWorker.ready;
-  } catch {
-    return null;
-  }
-}
-
-async function showReminderNotification(task: LocalTask) {
-  if (currentNotificationPermission() !== "granted") return false;
-
-  const title = String(task.title || "Tarea");
-  const description = typeof task.description === "string" ? task.description : "";
-  const reminderAt = String(task.reminderAt || "");
-
-  try {
-    const registration = await getNotificationRegistration();
-    const options: NotificationOptions = {
-      body: description || "Tienes una tarea pendiente.",
-      badge: "/icons/icon-192x192.png",
-      icon: "/icons/icon-192x192.png",
-      requireInteraction: true,
-      tag: `todo-${task._id}-${reminderAt}`,
-    };
-
-    if (registration) {
-      await registration.showNotification(`Recordatorio: ${title}`, options);
-    } else {
-      new Notification(`Recordatorio: ${title}`, options);
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function ReminderWatcher() {
@@ -152,25 +109,9 @@ function ReminderWatcher() {
       const tasks = await getAllTasksLocal();
       const notified = readNotifiedReminders();
       const dueTasks = dueReminderTasks(tasks, notified);
-      let changed = false;
       if (!dueTasks.length) return;
 
-      if (isFirebaseMessagingConfigured()) {
-        await sendDueRemindersWithFirebase(notified);
-        return;
-      }
-
-      for (const task of dueTasks) {
-        const reminderAt = task.reminderAt ? String(task.reminderAt) : "";
-
-        const shown = await showReminderNotification(task);
-        if (!shown) continue;
-
-        notified[task._id] = reminderAt;
-        changed = true;
-      }
-
-      if (changed) writeNotifiedReminders(notified);
+      await sendDueRemindersWithWebPush(notified);
     };
 
     const runReminderCheck = async () => {
@@ -196,20 +137,6 @@ function ReminderWatcher() {
       window.removeEventListener(remindersChangedEvent, notifyWhenTasksChange);
       document.removeEventListener("visibilitychange", notifyWhenVisible);
     };
-  }, []);
-
-  return null;
-}
-
-function FirebaseForegroundListener() {
-  useEffect(() => {
-    let stopListening: (() => void) | undefined;
-
-    void listenForFirebaseMessages().then((stop) => {
-      stopListening = stop;
-    });
-
-    return () => stopListening?.();
   }, []);
 
   return null;
@@ -266,7 +193,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <ReminderWatcher />
-      <FirebaseForegroundListener />
       <MobileInstallButton />
       <Routes>
         <Route path="/" element={<Login />} />
