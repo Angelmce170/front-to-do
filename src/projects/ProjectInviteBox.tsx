@@ -6,16 +6,11 @@ type Props = {
   inviteEmails: string;
   friends: UserMini[];
   selectedFriendIds: string[];
-  friendQuery: string;
-  friendResults: UserMini[];
   onInviteEmailsChange: (value: string) => void;
-  onFriendQueryChange: (value: string) => void;
   onToggleFriend: (friendId: string, checked: boolean) => void;
   onCopyLink: () => void;
   onInviteByEmail: (event: ProjectFormEvent) => void;
   onInviteFriends: () => void;
-  onSearchFriends: (event: ProjectFormEvent) => void;
-  onAddFriend: (user: UserMini) => void;
 };
 
 export default function ProjectInviteBox({
@@ -24,16 +19,11 @@ export default function ProjectInviteBox({
   inviteEmails,
   friends,
   selectedFriendIds,
-  friendQuery,
-  friendResults,
   onInviteEmailsChange,
-  onFriendQueryChange,
   onToggleFriend,
   onCopyLink,
   onInviteByEmail,
   onInviteFriends,
-  onSearchFriends,
-  onAddFriend,
 }: Props) {
   return (
     <div className="share-box">
@@ -91,25 +81,6 @@ export default function ProjectInviteBox({
           </button>
         </div>
 
-        <form className="invite-card" onSubmit={onSearchFriends}>
-          <span>Agregar amigo</span>
-          <div className="invite-row">
-            <input
-              value={friendQuery}
-              onChange={(event) => onFriendQueryChange(event.target.value)}
-              placeholder="Buscar por nombre o correo"
-            />
-            <button className="btn btn-compact">Buscar</button>
-          </div>
-          <div className="friend-results">
-            {friendResults.map((user) => (
-              <button key={user.id} type="button" onClick={() => onAddFriend(user)}>
-                <span>{user.name}</span>
-                <small>{user.email}</small>
-              </button>
-            ))}
-          </div>
-        </form>
       </div>
     </div>
   );

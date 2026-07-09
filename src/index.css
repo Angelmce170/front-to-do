@@ -1013,7 +1013,7 @@ button { letter-spacing: 0; }
 .invite-methods {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 .invite-card {
@@ -1040,6 +1040,10 @@ button { letter-spacing: 0; }
   max-height: 106px;
   overflow: auto;
   padding-right: 3px;
+}
+.participant-limit-field {
+  display: grid;
+  gap: 10px;
 }
 .project-tabs {
   display: flex;

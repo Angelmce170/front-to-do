@@ -95,7 +95,6 @@ export type ProjectForm = {
   description: string;
   mode: "individual" | "group";
   participantLimit: number;
-  inviteEmails: string;
 };
 
 export type ProjectTaskForm = {

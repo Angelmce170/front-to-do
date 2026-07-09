@@ -3,6 +3,7 @@ import { api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
+import ParticipantLimitField from "../projects/ParticipantLimitField";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
 import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
@@ -16,10 +17,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [selectedId, setSelectedId] = useState("");
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
   const [projectAttachment, setProjectAttachment] = useState<ProjectAttachment | null>(null);
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [friends, setFriends] = useState<UserMini[]>([]);
-  const [friendQuery, setFriendQuery] = useState("");
-  const [friendResults, setFriendResults] = useState<UserMini[]>([]);
   const [alerts, setAlerts] = useState<ProjectAlert[]>([]);
   const [projectView, setProjectView] = useState<"overview" | "tasks" | "schedule">("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
@@ -154,33 +152,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
       const { data } = await api.post("/projects", {
         ...projectForm,
         attachment: projectAttachment,
-        memberIds: selectedFriends,
       });
       applyProject(projectFromResponse(data.project));
       setProjectForm(emptyProjectForm);
       setProjectAttachment(null);
-      setSelectedFriends([]);
       setNotice("Proyecto creado.");
       await Promise.all([loadProjects(), loadAlerts()]);
     } catch (error) {
       setNotice((error as { response?: { data?: { message?: string } } }).response?.data?.message || "No se pudo crear el proyecto.");
     }
-  }
-
-  async function searchFriends(event: ProjectFormEvent) {
-    event.preventDefault();
-    if (friendQuery.trim().length < 2) return;
-
-    const { data } = await api.get("/projects/friends/search", { params: { q: friendQuery } });
-    setFriendResults(Array.isArray(data.items) ? data.items : []);
-  }
-
-  async function addFriend(user: UserMini) {
-    await api.post("/projects/friends", { userId: user.id });
-    setFriendQuery("");
-    setFriendResults([]);
-    await loadFriends();
-    setNotice(`${user.name} se agregó a tus amigos.`);
   }
 
   async function acceptProject() {
@@ -320,45 +300,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
             </div>
             {projectForm.mode === "group" && (
               <>
-                <label className="field">
-                  <span>Límite de participantes</span>
-                  <input
-                    type="number"
-                    min={2}
-                    max={50}
-                    value={projectForm.participantLimit}
-                    onChange={(event) =>
-                      setProjectForm({ ...projectForm, participantLimit: Number(event.target.value) })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Invitar por correo</span>
-                  <input
-                    value={projectForm.inviteEmails}
-                    onChange={(event) => setProjectForm({ ...projectForm, inviteEmails: event.target.value })}
-                    placeholder="correo@ejemplo.com, otro@ejemplo.com"
-                  />
-                </label>
-                <div className="friend-picker">
-                  <span>Amigos</span>
-                  {friends.map((friend) => (
-                    <label key={friend.id} className="friend-check">
-                      <input
-                        type="checkbox"
-                        checked={selectedFriends.includes(friend.id)}
-                        onChange={(event) =>
-                          setSelectedFriends((current) =>
-                            event.target.checked
-                              ? [...current, friend.id]
-                              : current.filter((id) => id !== friend.id)
-                          )
-                        }
-                      />
-                      {friend.name}
-                    </label>
-                  ))}
-                </div>
+                <ParticipantLimitField
+                  value={projectForm.participantLimit}
+                  onChange={(participantLimit) => setProjectForm({ ...projectForm, participantLimit })}
+                />
+                <p className="inline-message">Después de crearlo podrás invitar por correo, link, QR o amigos.</p>
               </>
             )}
             <label className="field">
@@ -444,10 +390,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   inviteEmails={inviteEmails}
                   friends={friends}
                   selectedFriendIds={inviteFriendIds}
-                  friendQuery={friendQuery}
-                  friendResults={friendResults}
                   onInviteEmailsChange={setInviteEmails}
-                  onFriendQueryChange={setFriendQuery}
                   onToggleFriend={(friendId, checked) =>
                     setInviteFriendIds((current) =>
                       checked ? [...current, friendId] : current.filter((id) => id !== friendId)
@@ -456,8 +399,6 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   onCopyLink={() => void copyJoinLink()}
                   onInviteByEmail={inviteMore}
                   onInviteFriends={() => void inviteSelectedFriends()}
-                  onSearchFriends={searchFriends}
-                  onAddFriend={(user) => void addFriend(user)}
                 />
               )}
 

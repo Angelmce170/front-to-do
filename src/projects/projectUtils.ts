@@ -5,7 +5,6 @@ export const emptyProjectForm: ProjectForm = {
   description: "",
   mode: "individual",
   participantLimit: 5,
-  inviteEmails: "",
 };
 
 export const emptyTaskForm: ProjectTaskForm = {
