@@ -838,6 +838,22 @@ button { letter-spacing: 0; }
   align-content: start;
   gap: 14px;
 }
+.project-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(25,37,54,.05);
+}
+.project-sidebar-head h3 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 18px;
+}
 .project-card {
   border: 1px solid #dce3ed;
   border-radius: 8px;
@@ -853,6 +869,22 @@ button { letter-spacing: 0; }
   padding: 18px;
 }
 .project-create { display: grid; gap: 12px; }
+.project-create-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.project-create-head h3 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 22px;
+}
+.project-create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .segmented-control {
   display: flex;
   gap: 4px;
@@ -909,6 +941,17 @@ button { letter-spacing: 0; }
 }
 .friend-results small { color: #718096; }
 .project-list { display: grid; gap: 8px; }
+.project-list-empty {
+  display: grid;
+  gap: 3px;
+  padding: 18px;
+  border: 1px dashed #cbd4e0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #718096;
+  font-size: 12px;
+}
+.project-list-empty strong { color: #344054; font-size: 14px; }
 .project-list-item {
   display: grid;
   gap: 4px;
@@ -1250,6 +1293,14 @@ button { letter-spacing: 0; }
   border-radius: 8px;
   background: #ffffff;
 }
+.project-create-dialog {
+  width: min(560px, 100%);
+}
+.project-create-dialog .project-create {
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
 .project-modal-content .icon-button {
   position: absolute;
   top: 12px;
@@ -1263,6 +1314,29 @@ button { letter-spacing: 0; }
   border: 1px solid #dce3ed;
   border-radius: 8px;
   object-fit: contain;
+}
+.pdf-preview {
+  display: grid;
+  gap: 12px;
+}
+.pdf-pages {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  width: 100%;
+  max-height: 68vh;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #e9eef4;
+}
+.pdf-page-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 5px 16px rgba(25,37,54,.14);
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -3,7 +3,7 @@ import { api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
-import ParticipantLimitField from "../projects/ParticipantLimitField";
+import ProjectCreateForm from "../projects/ProjectCreateForm";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
 import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
@@ -30,9 +30,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [chatText, setChatText] = useState("");
   const [notice, setNotice] = useState("");
   const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const activityRef = useRef(0);
 
-  const selectedProject = projects.find((project) => project._id === selectedId) || projects[0] || null;
+  const selectedProject = projects.find((project) => project._id === selectedId) || null;
   const activeMembers = useMemo(
     () => (selectedProject?.members || []).filter((member) => member.status === "active" && member.user),
     [selectedProject]
@@ -55,21 +56,21 @@ export default function ProjectsPanel({ currentUser }: Props) {
     return aTime - bTime;
   });
 
-  function applyProject(nextProject: Project) {
+  function applyProject(nextProject: Project, selectProject = true) {
     setProjects((current) => {
       const exists = current.some((project) => project._id === nextProject._id);
       return exists
         ? current.map((project) => (project._id === nextProject._id ? nextProject : project))
         : [nextProject, ...current];
     });
-    setSelectedId(nextProject._id);
+    if (selectProject) setSelectedId(nextProject._id);
   }
 
   async function loadProjects() {
     const { data } = await api.get("/projects");
     const items = Array.isArray(data.items) ? (data.items as Project[]) : [];
     setProjects(items);
-    setSelectedId((current) => current || items[0]?._id || "");
+    setSelectedId((current) => (items.some((project) => project._id === current) ? current : ""));
   }
 
   async function loadFriends() {
@@ -97,7 +98,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
       if (joinCode) {
         try {
           const { data } = await api.post(`/projects/join/${joinCode}`);
-          applyProject(projectFromResponse(data.project));
+          applyProject(projectFromResponse(data.project), false);
           window.history.replaceState({}, "", "/dashboard");
           setNotice("Te uniste al proyecto por enlace.");
         } catch {
@@ -156,6 +157,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
       applyProject(projectFromResponse(data.project));
       setProjectForm(emptyProjectForm);
       setProjectAttachment(null);
+      setCreateOpen(false);
       setNotice("Proyecto creado.");
       await Promise.all([loadProjects(), loadAlerts()]);
     } catch (error) {
@@ -167,7 +169,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
     if (!selectedProject) return;
 
     const { data } = await api.post(`/projects/${selectedProject._id}/accept`);
-    applyProject(projectFromResponse(data.project));
+    applyProject(projectFromResponse(data.project), false);
+    setSelectedId("");
+    setChatOpen(false);
     await loadAlerts();
   }
 
@@ -262,58 +266,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
       <div className="projects-layout">
         <aside className="project-sidebar">
-          <form className="project-card project-create" onSubmit={createProject}>
-            <p className="eyebrow">NUEVO PROYECTO</p>
-            <label className="field">
-              <span>Título</span>
-              <input
-                value={projectForm.title}
-                onChange={(event) => setProjectForm({ ...projectForm, title: event.target.value })}
-                onFocus={() => pingActivity("proyecto", "preparando un proyecto")}
-                placeholder="Nombre del proyecto"
-              />
-            </label>
-            <label className="field">
-              <span>Descripción</span>
-              <textarea
-                value={projectForm.description}
-                onChange={(event) => setProjectForm({ ...projectForm, description: event.target.value })}
-                rows={2}
-                placeholder="Objetivo, entregables o contexto"
-              />
-            </label>
-            <div className="segmented-control">
-              <button
-                className={projectForm.mode === "individual" ? "active" : ""}
-                type="button"
-                onClick={() => setProjectForm({ ...projectForm, mode: "individual" })}
-              >
-                Individual
-              </button>
-              <button
-                className={projectForm.mode === "group" ? "active" : ""}
-                type="button"
-                onClick={() => setProjectForm({ ...projectForm, mode: "group" })}
-              >
-                Grupo
-              </button>
+          <div className="project-sidebar-head">
+            <div>
+              <p className="eyebrow">MIS PROYECTOS</p>
+              <h3>Proyectos</h3>
             </div>
-            {projectForm.mode === "group" && (
-              <>
-                <ParticipantLimitField
-                  value={projectForm.participantLimit}
-                  onChange={(participantLimit) => setProjectForm({ ...projectForm, participantLimit })}
-                />
-                <p className="inline-message">Después de crearlo podrás invitar por correo, link, QR o amigos.</p>
-              </>
-            )}
-            <label className="field">
-              <span>Archivo interno</span>
-              <input type="file" onChange={(event) => void handleProjectFile(event.target.files?.[0])} />
-            </label>
-            {projectAttachment?.name && <span className="sync-badge">{projectAttachment.name}</span>}
-            <button className="btn btn-primary">Crear proyecto</button>
-          </form>
+            <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
+              + Nuevo
+            </button>
+          </div>
 
           <div className="project-list">
             {projects.map((project) => (
@@ -327,6 +288,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
                 <span>{project.mode === "group" ? "Grupo" : "Individual"} · {project.myStatus || "miembro"}</span>
               </button>
             ))}
+            {!projects.length && (
+              <div className="project-list-empty">
+                <strong>Sin proyectos</strong>
+                <span>Crea uno nuevo para empezar.</span>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -334,8 +301,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
           {!selectedProject ? (
             <div className="empty-state">
               <span className="empty-icon">+</span>
-              <h3>Crea tu primer proyecto</h3>
-              <p>Organiza tareas, archivos, chat y participantes en un solo lugar.</p>
+              <h3>{projects.length ? "Selecciona un proyecto" : "Crea tu primer proyecto"}</h3>
+              <p>{projects.length ? "Abre un proyecto para ver sus tareas, archivos y chat." : "Organiza tareas, archivos, chat y participantes en un solo lugar."}</p>
+              <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
+                + Nuevo proyecto
+              </button>
             </div>
           ) : (
             <>
@@ -576,6 +546,22 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
       {attachmentOpen && selectedProject?.attachment?.dataUrl && (
         <ProjectAttachmentModal project={selectedProject} onClose={() => setAttachmentOpen(false)} />
+      )}
+
+      {createOpen && (
+        <div className="project-modal" role="dialog" aria-modal="true">
+          <div className="project-modal-content project-create-dialog">
+            <ProjectCreateForm
+              form={projectForm}
+              attachment={projectAttachment}
+              onFormChange={setProjectForm}
+              onFileChange={(file) => void handleProjectFile(file)}
+              onSubmit={createProject}
+              onCancel={() => setCreateOpen(false)}
+              onActivity={pingActivity}
+            />
+          </div>
+        </div>
       )}
     </section>
   );
