@@ -10,6 +10,7 @@ import {
   type OutboxOp,
 } from "../offline/db";
 import { syncNow } from "../offline/sync";
+import ProjectsPanel from "./ProjectsPanel";
 
 type Status = "Pendiente" | "En Progreso" | "Completada";
 type Filter = "all" | "active" | "completed";
@@ -148,6 +149,7 @@ export default function Dashboard() {
     currentNotificationPermission()
   );
   const [notificationReady, setNotificationReady] = useState(currentNotificationPermission() === "granted");
+  const [dashboardTab, setDashboardTab] = useState<"tasks" | "projects">("tasks");
 
   const loadProfile = useCallback(async () => {
     const saved = readStoredProfile();
@@ -674,6 +676,25 @@ export default function Dashboard() {
       </header>
 
       <main className="dashboard-main">
+        <div className="workspace-switcher" aria-label="Secciones del dashboard">
+          <button
+            className={dashboardTab === "tasks" ? "active" : ""}
+            type="button"
+            onClick={() => setDashboardTab("tasks")}
+          >
+            Tareas
+          </button>
+          <button
+            className={dashboardTab === "projects" ? "active" : ""}
+            type="button"
+            onClick={() => setDashboardTab("projects")}
+          >
+            Proyectos
+          </button>
+        </div>
+
+        {dashboardTab === "tasks" ? (
+          <>
         <section className="summary-strip" aria-label="Resumen de tareas">
           <div><strong>{stats.total}</strong><span>Total</span></div>
           <div><strong>{stats.pending}</strong><span>Pendientes</span></div>
@@ -875,6 +896,21 @@ export default function Dashboard() {
             </ul>
           )}
         </section>
+          </>
+        ) : (
+          <ProjectsPanel
+            currentUser={
+              profile
+                ? {
+                    id: profile.id || "",
+                    name: profile.name,
+                    email: profile.email,
+                    avatarColor: profile.avatarColor,
+                  }
+                : null
+            }
+          />
+        )}
       </main>
     </div>
   );
