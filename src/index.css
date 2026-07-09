@@ -1011,6 +1011,12 @@ button { letter-spacing: 0; }
 }
 .project-detail-head h3 { margin: 2px 0 6px; color: #172033; font-size: 26px; }
 .project-detail-head p { max-width: 720px; margin: 0; color: #637083; line-height: 1.45; }
+.project-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .project-meta-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1414,8 +1420,8 @@ button { letter-spacing: 0; }
   .projects-topline { flex-direction: column; }
   .project-alerts { justify-content: flex-start; }
   .projects-layout { grid-template-columns: 1fr; }
-  .project-sidebar { order: 2; }
-  .project-workspace { order: 1; }
+  .project-sidebar { order: 1; }
+  .project-workspace { order: 2; }
   .share-box { grid-template-columns: 1fr auto; }
   .share-box .btn { justify-self: start; }
   .invite-methods { grid-template-columns: 1fr; }

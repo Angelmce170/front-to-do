@@ -326,11 +326,23 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   <h3>{selectedProject.title}</h3>
                   <p>{selectedProject.description || "Sin descripción"}</p>
                 </div>
-                {selectedProject.myStatus === "invited" && (
-                  <button className="btn btn-primary" type="button" onClick={() => void acceptProject()}>
-                    Aceptar invitación
+                <div className="project-detail-actions">
+                  {selectedProject.myStatus === "invited" && (
+                    <button className="btn btn-primary" type="button" onClick={() => void acceptProject()}>
+                      Aceptar invitación
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-compact"
+                    type="button"
+                    onClick={() => {
+                      setSelectedId("");
+                      setChatOpen(false);
+                    }}
+                  >
+                    Cerrar
                   </button>
-                )}
+                </div>
               </div>
 
               <div className="project-meta-grid">
