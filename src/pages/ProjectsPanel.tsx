@@ -1,140 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-
-type UserMini = {
-  id: string;
-  name: string;
-  email: string;
-  avatarColor?: string;
-};
-
-type ProjectAttachment = {
-  name?: string;
-  type?: string;
-  size?: number;
-  dataUrl?: string;
-};
-
-type ProjectMember = {
-  user: UserMini | null;
-  role: "leader" | "member";
-  status: "active" | "invited";
-};
-
-type ProjectComment = {
-  _id: string;
-  author: UserMini | null;
-  message: string;
-  createdAt: string;
-};
-
-type ProjectTask = {
-  _id: string;
-  title: string;
-  description?: string;
-  assignedTo: UserMini | null;
-  dueAt?: string | null;
-  status: "Pendiente" | "En Progreso" | "Completada";
-  comments?: ProjectComment[];
-};
-
-type ProjectMessage = {
-  _id: string;
-  scope: "group" | "direct";
-  to?: UserMini | null;
-  author: UserMini | null;
-  text: string;
-  createdAt: string;
-};
-
-type ProjectPresence = {
-  user: UserMini | null;
-  area: string;
-  action: string;
-};
-
-type ProjectActivity = {
-  _id: string;
-  user: UserMini | null;
-  text: string;
-  area: string;
-  createdAt: string;
-};
-
-type Project = {
-  _id: string;
-  title: string;
-  description?: string;
-  mode: "individual" | "group";
-  participantLimit: number;
-  inviteCode: string;
-  creator: UserMini | null;
-  members: ProjectMember[];
-  pendingEmails?: { email: string }[];
-  attachment?: ProjectAttachment;
-  tasks: ProjectTask[];
-  messages: ProjectMessage[];
-  presence: ProjectPresence[];
-  activity: ProjectActivity[];
-  myStatus: "active" | "invited" | "";
-  myRole: "leader" | "member";
-  isLeader: boolean;
-};
-
-type ProjectAlert = {
-  _id: string;
-  title: string;
-  body: string;
-  read: boolean;
-  type: string;
-  project?: { _id: string; title: string };
-  createdAt: string;
-};
+import ProjectAlerts from "../projects/ProjectAlerts";
+import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
+import ProjectChat from "../projects/ProjectChat";
+import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
+import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
 
 type Props = {
   currentUser: UserMini | null;
 };
-
-const emptyProjectForm = {
-  title: "",
-  description: "",
-  mode: "individual" as "individual" | "group",
-  participantLimit: 5,
-  inviteEmails: "",
-};
-const emptyTaskForm = { title: "", description: "", assignedTo: "", dueAt: "" };
-
-function fromDateInput(value: string) {
-  return value ? new Date(value).toISOString() : null;
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function fileToAttachment(file: File) {
-  return new Promise<ProjectAttachment>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve({
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl: String(reader.result || ""),
-      });
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function projectFromResponse(value: unknown) {
-  return value as Project;
-}
 
 export default function ProjectsPanel({ currentUser }: Props) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -151,7 +25,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [inviteEmails, setInviteEmails] = useState("");
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatScope, setChatScope] = useState<"group" | "direct">("group");
+  const [chatScope, setChatScope] = useState<ChatScope>("group");
   const [chatTo, setChatTo] = useState("");
   const [chatText, setChatText] = useState("");
   const [notice, setNotice] = useState("");
@@ -270,7 +144,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     setProjectAttachment(await fileToAttachment(file));
   }
 
-  async function createProject(event: FormEvent) {
+  async function createProject(event: ProjectFormEvent) {
     event.preventDefault();
     if (!projectForm.title.trim()) return;
 
@@ -291,7 +165,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     }
   }
 
-  async function searchFriends(event: FormEvent) {
+  async function searchFriends(event: ProjectFormEvent) {
     event.preventDefault();
     if (friendQuery.trim().length < 2) return;
 
@@ -315,7 +189,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     await loadAlerts();
   }
 
-  async function inviteMore(event: FormEvent) {
+  async function inviteMore(event: ProjectFormEvent) {
     event.preventDefault();
     if (!selectedProject) return;
 
@@ -325,7 +199,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     setNotice("Invitaciones enviadas.");
   }
 
-  async function createTask(event: FormEvent) {
+  async function createTask(event: ProjectFormEvent) {
     event.preventDefault();
     if (!selectedProject || !taskForm.title.trim()) return;
 
@@ -346,7 +220,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     applyProject(projectFromResponse(data.project));
   }
 
-  async function addComment(event: FormEvent, task: ProjectTask) {
+  async function addComment(event: ProjectFormEvent, task: ProjectTask) {
     event.preventDefault();
     if (!selectedProject) return;
 
@@ -358,7 +232,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     setCommentDrafts((current) => ({ ...current, [task._id]: "" }));
   }
 
-  async function sendMessage(event: FormEvent) {
+  async function sendMessage(event: ProjectFormEvent) {
     event.preventDefault();
     if (!selectedProject || !chatText.trim()) return;
 
@@ -385,18 +259,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
           <p className="eyebrow">COLABORACIÓN</p>
           <h2>Proyectos</h2>
         </div>
-        <div className="project-alerts">
-          {alerts.slice(0, 3).map((alert) => (
-            <button
-              key={alert._id}
-              className={alert.read ? "alert-pill read" : "alert-pill"}
-              type="button"
-              onClick={() => void api.patch(`/projects/alerts/${alert._id}/read`).then(loadAlerts)}
-            >
-              {alert.title}
-            </button>
-          ))}
-        </div>
+        <ProjectAlerts
+          alerts={alerts}
+          onRead={(alertId) => void api.patch(`/projects/alerts/${alertId}/read`).then(loadAlerts)}
+        />
       </div>
 
       {notice && <p className="inline-message">{notice}</p>}
@@ -757,83 +623,26 @@ export default function ProjectsPanel({ currentUser }: Props) {
       </div>
 
       {selectedProject && selectedProject.myStatus === "active" && (
-        <div className={chatOpen ? "project-chat open" : "project-chat"}>
-          <button className="chat-bubble" type="button" onClick={() => setChatOpen((open) => !open)}>
-            <span>Chat</span>
-            {chatOpen ? "×" : "Abrir"}
-          </button>
-          {chatOpen && (
-            <div className="chat-panel">
-              <div className="chat-panel-head">
-                <strong>{selectedProject.title}</strong>
-                <div className="segmented-control small">
-                  <button
-                    className={chatScope === "group" ? "active" : ""}
-                    type="button"
-                    onClick={() => setChatScope("group")}
-                  >
-                    Todos
-                  </button>
-                  <button
-                    className={chatScope === "direct" ? "active" : ""}
-                    type="button"
-                    onClick={() => {
-                      setChatScope("direct");
-                      setChatTo((current) => current || otherMembers[0]?.user?.id || "");
-                    }}
-                  >
-                    Directo
-                  </button>
-                </div>
-              </div>
-              {chatScope === "direct" && (
-                <select value={chatTo} onChange={(event) => setChatTo(event.target.value)}>
-                  {otherMembers.map((member) => (
-                    <option key={member.user?.id} value={member.user?.id}>
-                      {member.user?.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <div className="chat-messages">
-                {filteredMessages.map((message) => (
-                  <p
-                    key={message._id}
-                    className={message.author?.id === currentUser?.id ? "own" : ""}
-                  >
-                    <strong>{message.author?.name || "Usuario"}</strong>
-                    <span>{message.text}</span>
-                  </p>
-                ))}
-              </div>
-              <form onSubmit={sendMessage}>
-                <input
-                  value={chatText}
-                  onChange={(event) => setChatText(event.target.value)}
-                  onFocus={() => pingActivity("chat", "escribiendo en el chat")}
-                  placeholder="Mensaje"
-                />
-                <button className="btn btn-primary">Enviar</button>
-              </form>
-            </div>
-          )}
-        </div>
+        <ProjectChat
+          project={selectedProject}
+          currentUser={currentUser}
+          otherMembers={otherMembers}
+          messages={filteredMessages}
+          open={chatOpen}
+          scope={chatScope}
+          to={chatTo}
+          text={chatText}
+          onOpenChange={setChatOpen}
+          onScopeChange={setChatScope}
+          onToChange={setChatTo}
+          onTextChange={setChatText}
+          onSend={sendMessage}
+          onActivity={pingActivity}
+        />
       )}
 
       {attachmentOpen && selectedProject?.attachment?.dataUrl && (
-        <div className="project-modal" role="dialog" aria-modal="true">
-          <div className="project-modal-content">
-            <button className="icon-button" type="button" onClick={() => setAttachmentOpen(false)}>
-              ×
-            </button>
-            <h3>{selectedProject.attachment.name}</h3>
-            {selectedProject.attachment.type?.startsWith("image/") ? (
-              <img src={selectedProject.attachment.dataUrl} alt={selectedProject.attachment.name || "Archivo"} />
-            ) : (
-              <iframe title={selectedProject.attachment.name} src={selectedProject.attachment.dataUrl} />
-            )}
-          </div>
-        </div>
+        <ProjectAttachmentModal project={selectedProject} onClose={() => setAttachmentOpen(false)} />
       )}
     </section>
   );
