@@ -1419,9 +1419,24 @@ button { letter-spacing: 0; }
   .workspace-switcher button { flex: 1; }
   .projects-topline { flex-direction: column; }
   .project-alerts { justify-content: flex-start; }
-  .projects-layout { grid-template-columns: 1fr; }
-  .project-sidebar { order: 1; }
-  .project-workspace { order: 2; }
+  .projects-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .project-sidebar {
+    order: 0;
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    padding-bottom: 8px;
+    background: #f3f7fb;
+  }
+  .project-workspace { order: 1; }
+  .project-list {
+    max-height: 220px;
+    overflow: auto;
+    padding-right: 2px;
+  }
   .share-box { grid-template-columns: 1fr auto; }
   .share-box .btn { justify-self: start; }
   .invite-methods { grid-template-columns: 1fr; }
