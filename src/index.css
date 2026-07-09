@@ -953,21 +953,52 @@ button { letter-spacing: 0; }
 }
 .project-list-empty strong { color: #344054; font-size: 14px; }
 .project-list-item {
+  position: relative;
   display: grid;
   gap: 4px;
   border: 1px solid #dce3ed;
   border-radius: 8px;
-  padding: 13px;
+  padding: 13px 13px 13px 17px;
   background: #ffffff;
   color: #172033;
   text-align: left;
   cursor: pointer;
+}
+.project-list-item::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: #2a8b7b;
 }
 .project-list-item span { color: #637083; font-size: 12px; font-weight: 700; }
 .project-list-item.active {
   border-color: #2a8b7b;
   box-shadow: 0 0 0 3px rgba(42,139,123,.12);
 }
+.project-origin {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  text-transform: uppercase;
+}
+.project-origin.own {
+  background: #e4f2ef;
+  color: #1f6c60;
+}
+.project-origin.shared {
+  background: #e4f1fb;
+  color: #1f5f87;
+}
+.project-origin.invited {
+  background: #fff3d9;
+  color: #8b5d12;
+}
+.project-list-item.shared::before { background: #4386c6; }
+.project-list-item.invited::before { background: #e0a43b; }
 .project-detail-head {
   display: flex;
   align-items: flex-start;

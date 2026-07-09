@@ -34,6 +34,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const activityRef = useRef(0);
 
   const selectedProject = projects.find((project) => project._id === selectedId) || null;
+  const projectOwnerLabel = (project: Project) =>
+    project.creator?.id === currentUser?.id ? "Propio" : project.myStatus === "invited" ? "Invitación" : "Compartido";
+  const projectOwnerClass = (project: Project) =>
+    project.creator?.id === currentUser?.id ? "own" : project.myStatus === "invited" ? "invited" : "shared";
   const activeMembers = useMemo(
     () => (selectedProject?.members || []).filter((member) => member.status === "active" && member.user),
     [selectedProject]
@@ -269,7 +273,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
           <div className="project-sidebar-head">
             <div>
               <p className="eyebrow">MIS PROYECTOS</p>
-              <h3>Proyectos</h3>
+              <h3>Lista</h3>
             </div>
             <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
               + Nuevo
@@ -280,10 +284,20 @@ export default function ProjectsPanel({ currentUser }: Props) {
             {projects.map((project) => (
               <button
                 key={project._id}
-                className={selectedProject?._id === project._id ? "project-list-item active" : "project-list-item"}
+                className={[
+                  "project-list-item",
+                  projectOwnerClass(project),
+                  selectedProject?._id === project._id ? "active" : "",
+                ].filter(Boolean).join(" ")}
                 type="button"
-                onClick={() => setSelectedId(project._id)}
+                onClick={() => {
+                  setSelectedId((current) => (current === project._id ? "" : project._id));
+                  setChatOpen(false);
+                }}
               >
+                <span className={`project-origin ${projectOwnerClass(project)}`}>
+                  {projectOwnerLabel(project)}
+                </span>
                 <strong>{project.title}</strong>
                 <span>{project.mode === "group" ? "Grupo" : "Individual"} · {project.myStatus || "miembro"}</span>
               </button>
@@ -303,9 +317,6 @@ export default function ProjectsPanel({ currentUser }: Props) {
               <span className="empty-icon">+</span>
               <h3>{projects.length ? "Selecciona un proyecto" : "Crea tu primer proyecto"}</h3>
               <p>{projects.length ? "Abre un proyecto para ver sus tareas, archivos y chat." : "Organiza tareas, archivos, chat y participantes en un solo lugar."}</p>
-              <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
-                + Nuevo proyecto
-              </button>
             </div>
           ) : (
             <>

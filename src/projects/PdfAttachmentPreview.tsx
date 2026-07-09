@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+import type { PDFDocumentLoadingTask } from "pdfjs-dist";
 
 type Props = {
   dataUrl: string;
@@ -27,7 +24,7 @@ export default function PdfAttachmentPreview({ dataUrl }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null;
+    let loadingTask: PDFDocumentLoadingTask | null = null;
 
     async function renderPdf() {
       const container = containerRef.current;
@@ -38,6 +35,11 @@ export default function PdfAttachmentPreview({ dataUrl }: Props) {
       container.innerHTML = "";
 
       try {
+        const [pdfjsLib, pdfWorker] = await Promise.all([
+          import("pdfjs-dist"),
+          import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+        ]);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
         loadingTask = pdfjsLib.getDocument({ data: dataUrlToBytes(dataUrl) });
         const pdf = await loadingTask.promise;
 
