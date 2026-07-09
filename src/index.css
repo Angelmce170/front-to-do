@@ -1420,18 +1420,18 @@ button { letter-spacing: 0; }
   .projects-topline { flex-direction: column; }
   .project-alerts { justify-content: flex-start; }
   .projects-layout {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
   }
   .project-sidebar {
-    order: 0;
+    order: -1 !important;
     position: sticky;
     top: 0;
     z-index: 12;
     padding-bottom: 8px;
     background: #f3f7fb;
   }
-  .project-workspace { order: 1; }
+  .project-workspace { order: 2 !important; }
   .project-list {
     max-height: 220px;
     overflow: auto;
