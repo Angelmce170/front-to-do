@@ -3,6 +3,7 @@ import { api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
+import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
 import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
 
@@ -23,6 +24,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [projectView, setProjectView] = useState<"overview" | "tasks" | "schedule">("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
+  const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [chatOpen, setChatOpen] = useState(false);
   const [chatScope, setChatScope] = useState<ChatScope>("group");
@@ -199,6 +201,17 @@ export default function ProjectsPanel({ currentUser }: Props) {
     setNotice("Invitaciones enviadas.");
   }
 
+  async function inviteSelectedFriends() {
+    if (!selectedProject || !inviteFriendIds.length) return;
+
+    const { data } = await api.post(`/projects/${selectedProject._id}/invite-friends`, {
+      userIds: inviteFriendIds,
+    });
+    applyProject(projectFromResponse(data.project));
+    setInviteFriendIds([]);
+    setNotice("Amigos invitados al proyecto.");
+  }
+
   async function createTask(event: ProjectFormEvent) {
     event.preventDefault();
     if (!selectedProject || !taskForm.title.trim()) return;
@@ -356,26 +369,6 @@ export default function ProjectsPanel({ currentUser }: Props) {
             <button className="btn btn-primary">Crear proyecto</button>
           </form>
 
-          <form className="project-card friend-search" onSubmit={searchFriends}>
-            <p className="eyebrow">AMIGOS</p>
-            <div className="search-row">
-              <input
-                value={friendQuery}
-                onChange={(event) => setFriendQuery(event.target.value)}
-                placeholder="Buscar por nombre o correo"
-              />
-              <button className="btn btn-compact">Buscar</button>
-            </div>
-            <div className="friend-results">
-              {friendResults.map((user) => (
-                <button key={user.id} type="button" onClick={() => void addFriend(user)}>
-                  <span>{user.name}</span>
-                  <small>{user.email}</small>
-                </button>
-              ))}
-            </div>
-          </form>
-
           <div className="project-list">
             {projects.map((project) => (
               <button
@@ -445,28 +438,27 @@ export default function ProjectsPanel({ currentUser }: Props) {
               )}
 
               {selectedProject.mode === "group" && selectedProject.isLeader && (
-                <div className="share-box">
-                  <div>
-                    <p className="eyebrow">INVITACIÓN</p>
-                    <strong>Link y QR del proyecto</strong>
-                    <small>{joinLink}</small>
-                  </div>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinLink)}`}
-                    alt="QR de invitación"
-                  />
-                  <button className="btn btn-compact" type="button" onClick={() => void copyJoinLink()}>
-                    Copiar link
-                  </button>
-                  <form onSubmit={inviteMore}>
-                    <input
-                      value={inviteEmails}
-                      onChange={(event) => setInviteEmails(event.target.value)}
-                      placeholder="Invitar más correos"
-                    />
-                    <button className="btn btn-compact">Invitar</button>
-                  </form>
-                </div>
+                <ProjectInviteBox
+                  project={selectedProject}
+                  joinLink={joinLink}
+                  inviteEmails={inviteEmails}
+                  friends={friends}
+                  selectedFriendIds={inviteFriendIds}
+                  friendQuery={friendQuery}
+                  friendResults={friendResults}
+                  onInviteEmailsChange={setInviteEmails}
+                  onFriendQueryChange={setFriendQuery}
+                  onToggleFriend={(friendId, checked) =>
+                    setInviteFriendIds((current) =>
+                      checked ? [...current, friendId] : current.filter((id) => id !== friendId)
+                    )
+                  }
+                  onCopyLink={() => void copyJoinLink()}
+                  onInviteByEmail={inviteMore}
+                  onInviteFriends={() => void inviteSelectedFriends()}
+                  onSearchFriends={searchFriends}
+                  onAddFriend={(user) => void addFriend(user)}
+                />
               )}
 
               <div className="project-tabs">

@@ -1010,11 +1010,36 @@ button { letter-spacing: 0; }
   border-radius: 6px;
   background: #ffffff;
 }
-.share-box form {
+.invite-methods {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.invite-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid #d7ebe7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.invite-card > span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+}
+.invite-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+.friend-picker.compact {
+  max-height: 106px;
+  overflow: auto;
+  padding-right: 3px;
 }
 .project-tabs {
   display: flex;
@@ -1284,6 +1309,7 @@ button { letter-spacing: 0; }
   .project-workspace { order: 1; }
   .share-box { grid-template-columns: 1fr auto; }
   .share-box .btn { justify-self: start; }
+  .invite-methods { grid-template-columns: 1fr; }
   .project-detail-head { flex-direction: column; }
   .project-meta-grid { grid-template-columns: 1fr; }
   .project-meta-grid > div {
@@ -1366,7 +1392,7 @@ button { letter-spacing: 0; }
     align-items: start;
   }
   .share-box img { width: 96px; height: 96px; }
-  .share-box form,
+  .invite-row,
   .comments-box form,
   .chat-panel form,
   .search-row {
