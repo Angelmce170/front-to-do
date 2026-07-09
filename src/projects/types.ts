@@ -86,6 +86,7 @@ export type ProjectAlert = {
   body: string;
   read: boolean;
   type: string;
+  data?: Record<string, unknown>;
   project?: { _id: string; title: string };
   createdAt: string;
 };

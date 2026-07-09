@@ -12,6 +12,41 @@ type Props = {
   currentUser: UserMini | null;
 };
 
+type ChatUnreadInfo = {
+  count: number;
+  senders: string[];
+};
+
+function chatKey(scope: ChatScope, userId = "") {
+  return scope === "group" ? "group" : `direct:${userId}`;
+}
+
+function alertData(alert: ProjectAlert) {
+  return (alert.data && typeof alert.data === "object" ? alert.data : {}) as Record<string, unknown>;
+}
+
+function alertTextData(alert: ProjectAlert, key: string) {
+  const value = alertData(alert)[key];
+  return typeof value === "string" ? value : "";
+}
+
+function alertProjectId(alert: ProjectAlert) {
+  return alertTextData(alert, "projectId") || alert.project?._id || "";
+}
+
+function alertChatKey(alert: ProjectAlert) {
+  const chat = alertTextData(alert, "chat");
+  if (chat === "direct") {
+    return chatKey("direct", alertTextData(alert, "chatUserId") || alertTextData(alert, "authorId"));
+  }
+
+  return chat === "group" ? "group" : "";
+}
+
+function alertSender(alert: ProjectAlert) {
+  return alertTextData(alert, "authorName") || "Alguien";
+}
+
 export default function ProjectsPanel({ currentUser }: Props) {
   const [isProjectMobile, setIsProjectMobile] = useState(() => window.matchMedia("(max-width: 780px)").matches);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -55,6 +90,45 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const toId = message.to?.id;
     return (authorId === currentUser?.id && toId === chatTo) || (authorId === chatTo && toId === currentUser?.id);
   });
+  const unreadMessageAlerts = useMemo(
+    () =>
+      selectedProject
+        ? alerts.filter(
+            (alert) =>
+              !alert.read &&
+              alert.type === "message" &&
+              alertProjectId(alert) === selectedProject._id
+          )
+        : [],
+    [alerts, selectedProject]
+  );
+  const unreadByChannel = useMemo(() => {
+    const unread: Record<string, ChatUnreadInfo> = {};
+
+    for (const alert of unreadMessageAlerts) {
+      const key = alertChatKey(alert);
+      if (!key) continue;
+
+      const sender = alertSender(alert);
+      const current = unread[key] || { count: 0, senders: [] };
+      current.count += 1;
+      if (!current.senders.includes(sender)) current.senders.push(sender);
+      unread[key] = current;
+    }
+
+    return unread;
+  }, [unreadMessageAlerts]);
+  const currentChatKey = chatKey(chatScope, chatTo);
+  const activeUnreadAlertIds = useMemo(
+    () =>
+      chatOpen
+        ? unreadMessageAlerts
+            .filter((alert) => alertChatKey(alert) === currentChatKey)
+            .map((alert) => alert._id)
+        : [],
+    [chatOpen, currentChatKey, unreadMessageAlerts]
+  );
+  const chatUnreadTotal = unreadMessageAlerts.length;
   const sortedSchedule = [...(selectedProject?.tasks || [])].sort((a, b) => {
     const aTime = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
     const bTime = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
@@ -124,6 +198,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const items = Array.isArray(data.items) ? (data.items as Project[]) : [];
     setProjects(items);
     setSelectedId((current) => (items.some((project) => project._id === current) ? current : ""));
+    return items;
   }
 
   async function loadFriends() {
@@ -147,7 +222,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
   useEffect(() => {
     void (async () => {
-      const joinCode = new URLSearchParams(window.location.search).get("joinProject");
+      const params = new URLSearchParams(window.location.search);
+      const joinCode = params.get("joinProject");
+      const projectParam = params.get("project");
+      const chatParam = params.get("chat");
+      const chatUserParam = params.get("chatUser");
+
       if (joinCode) {
         try {
           const { data } = await api.post(`/projects/join/${joinCode}`);
@@ -159,7 +239,16 @@ export default function ProjectsPanel({ currentUser }: Props) {
         }
       }
 
-      await Promise.all([loadProjects(), loadFriends(), loadAlerts()]);
+      const [items] = await Promise.all([loadProjects(), loadFriends(), loadAlerts()]);
+      if (projectParam && items.some((project) => project._id === projectParam)) {
+        setSelectedId(projectParam);
+        if (chatParam === "group" || chatParam === "direct") {
+          setChatScope(chatParam);
+          setChatTo(chatParam === "direct" ? chatUserParam || "" : "");
+          setChatOpen(true);
+        }
+        window.history.replaceState({}, "", "/dashboard");
+      }
     })();
   }, []);
 
@@ -192,6 +281,19 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     return () => window.clearInterval(timer);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!activeUnreadAlertIds.length) return;
+
+    const ids = activeUnreadAlertIds;
+    void Promise.all(ids.map((id) => api.patch(`/projects/alerts/${id}/read`)))
+      .then(() => {
+        setAlerts((current) =>
+          current.map((alert) => (ids.includes(alert._id) ? { ...alert, read: true } : alert))
+        );
+      })
+      .catch(() => {});
+  }, [activeUnreadAlertIds]);
 
   async function handleProjectFile(file?: File) {
     if (!file) {
@@ -582,6 +684,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
           scope={chatScope}
           to={chatTo}
           text={chatText}
+          unreadTotal={chatUnreadTotal}
+          unreadByChannel={unreadByChannel}
           onOpenChange={setChatOpen}
           onScopeChange={setChatScope}
           onToChange={setChatTo}

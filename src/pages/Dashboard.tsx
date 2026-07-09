@@ -78,6 +78,10 @@ const enqueueDelete = (id: string) =>
 const enqueueProfile = (data: { name: string; email: string; avatarColor: string }) =>
   enqueue({ id: "profile-update", op: "profile", data, ts: Date.now() });
 const notifyReminderWatcher = () => window.dispatchEvent(new Event(remindersChangedEvent));
+const initialDashboardTab = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.has("project") || params.has("joinProject") ? "projects" : "tasks";
+};
 
 function normalizeTask(value: unknown): Task {
   const task = record(value);
@@ -149,7 +153,7 @@ export default function Dashboard() {
     currentNotificationPermission()
   );
   const [notificationReady, setNotificationReady] = useState(currentNotificationPermission() === "granted");
-  const [dashboardTab, setDashboardTab] = useState<"tasks" | "projects">("tasks");
+  const [dashboardTab, setDashboardTab] = useState<"tasks" | "projects">(initialDashboardTab);
 
   const loadProfile = useCallback(async () => {
     const saved = readStoredProfile();
