@@ -13,6 +13,7 @@ type Props = {
 };
 
 export default function ProjectsPanel({ currentUser }: Props) {
+  const [isProjectMobile, setIsProjectMobile] = useState(() => window.matchMedia("(max-width: 780px)").matches);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
@@ -59,6 +60,54 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const bTime = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
     return aTime - bTime;
   });
+
+  function selectProject(projectId: string) {
+    setSelectedId((current) => (current === projectId ? "" : projectId));
+    setChatOpen(false);
+  }
+
+  function projectNavigation() {
+    return (
+      <>
+        <div className="project-sidebar-head">
+          <div>
+            <p className="eyebrow">MIS PROYECTOS</p>
+            <h3>Lista</h3>
+          </div>
+          <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
+            + Nuevo
+          </button>
+        </div>
+
+        <div className="project-list">
+          {projects.map((project) => (
+            <button
+              key={project._id}
+              className={[
+                "project-list-item",
+                projectOwnerClass(project),
+                selectedProject?._id === project._id ? "active" : "",
+              ].filter(Boolean).join(" ")}
+              type="button"
+              onClick={() => selectProject(project._id)}
+            >
+              <span className={`project-origin ${projectOwnerClass(project)}`}>
+                {projectOwnerLabel(project)}
+              </span>
+              <strong>{project.title}</strong>
+              <span>{project.mode === "group" ? "Grupo" : "Individual"} · {project.myStatus || "miembro"}</span>
+            </button>
+          ))}
+          {!projects.length && (
+            <div className="project-list-empty">
+              <strong>Sin proyectos</strong>
+              <span>Crea uno nuevo para empezar.</span>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
 
   function applyProject(nextProject: Project, selectProject = true) {
     setProjects((current) => {
@@ -112,6 +161,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
       await Promise.all([loadProjects(), loadFriends(), loadAlerts()]);
     })();
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 780px)");
+    const updateMobile = () => setIsProjectMobile(query.matches);
+
+    updateMobile();
+    query.addEventListener("change", updateMobile);
+    return () => query.removeEventListener("change", updateMobile);
   }, []);
 
   useEffect(() => {
@@ -268,48 +326,14 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
       {notice && <p className="inline-message">{notice}</p>}
 
-      <div className="projects-layout">
-        <aside className="project-sidebar">
-          <div className="project-sidebar-head">
-            <div>
-              <p className="eyebrow">MIS PROYECTOS</p>
-              <h3>Lista</h3>
-            </div>
-            <button className="btn btn-primary btn-compact" type="button" onClick={() => setCreateOpen(true)}>
-              + Nuevo
-            </button>
-          </div>
+      {isProjectMobile && (
+        <div className="mobile-project-nav">
+          {projectNavigation()}
+        </div>
+      )}
 
-          <div className="project-list">
-            {projects.map((project) => (
-              <button
-                key={project._id}
-                className={[
-                  "project-list-item",
-                  projectOwnerClass(project),
-                  selectedProject?._id === project._id ? "active" : "",
-                ].filter(Boolean).join(" ")}
-                type="button"
-                onClick={() => {
-                  setSelectedId((current) => (current === project._id ? "" : project._id));
-                  setChatOpen(false);
-                }}
-              >
-                <span className={`project-origin ${projectOwnerClass(project)}`}>
-                  {projectOwnerLabel(project)}
-                </span>
-                <strong>{project.title}</strong>
-                <span>{project.mode === "group" ? "Grupo" : "Individual"} · {project.myStatus || "miembro"}</span>
-              </button>
-            ))}
-            {!projects.length && (
-              <div className="project-list-empty">
-                <strong>Sin proyectos</strong>
-                <span>Crea uno nuevo para empezar.</span>
-              </div>
-            )}
-          </div>
-        </aside>
+      <div className="projects-layout">
+        {!isProjectMobile && <aside className="project-sidebar">{projectNavigation()}</aside>}
 
         <div className="project-workspace">
           {!selectedProject ? (
