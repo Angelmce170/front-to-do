@@ -1048,6 +1048,46 @@ button { letter-spacing: 0; }
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(25,37,54,.05);
 }
+.project-workspace {
+  position: relative;
+}
+.project-cursor-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: none;
+}
+.project-remote-cursor {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 170px;
+  transform: translate(8px, 8px);
+  filter: drop-shadow(0 10px 20px rgba(23, 32, 51, .18));
+}
+.project-remote-cursor i {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--cursor-color, #2a8b7b);
+  box-shadow: 0 0 0 2px var(--cursor-color, #2a8b7b);
+}
+.project-remote-cursor b {
+  overflow: hidden;
+  max-width: 140px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--cursor-color, #2a8b7b);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .project-create,
 .friend-search,
 .activity-card,
@@ -1850,6 +1890,9 @@ button { letter-spacing: 0; }
     border-bottom: 1px solid #e7ecf2;
   }
   .project-meta-grid > div:last-child { border-bottom: 0; }
+  .project-remote-cursor b {
+    max-width: 100px;
+  }
   .assignment-row { grid-template-columns: 1fr; }
 }
 

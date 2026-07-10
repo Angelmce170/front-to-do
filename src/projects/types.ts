@@ -50,6 +50,8 @@ export type ProjectPresence = {
   user: UserMini | null;
   area: string;
   action: string;
+  cursorX?: number | null;
+  cursorY?: number | null;
 };
 
 export type ProjectActivity = {

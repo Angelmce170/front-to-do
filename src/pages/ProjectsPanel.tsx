@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
@@ -82,6 +83,14 @@ function activityMonthLabel(key: string) {
   return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
+const projectViewLabels = {
+  overview: "Actividad",
+  tasks: "Tareas",
+  schedule: "Cronograma",
+} as const;
+
+type ProjectView = keyof typeof projectViewLabels;
+
 export default function ProjectsPanel({ currentUser }: Props) {
   const [isProjectMobile, setIsProjectMobile] = useState(() => window.matchMedia("(max-width: 780px)").matches);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -90,7 +99,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [projectAttachment, setProjectAttachment] = useState<ProjectAttachment | null>(null);
   const [friends, setFriends] = useState<UserMini[]>([]);
   const [alerts, setAlerts] = useState<ProjectAlert[]>([]);
-  const [projectView, setProjectView] = useState<"overview" | "tasks" | "schedule">("overview");
+  const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
@@ -107,9 +116,14 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const activityRef = useRef(0);
+  const cursorPresenceRef = useRef(0);
+  const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const typingRef = useRef<Record<string, number>>({});
 
   const selectedProject = projects.find((project) => project._id === selectedId) || null;
+  const selectedProjectId = selectedProject?._id || "";
+  const selectedProjectStatus = selectedProject?.myStatus || "";
   const projectOwnerLabel = (project: Project) =>
     project.creator?.id === currentUser?.id ? "Propio" : project.myStatus === "invited" ? "Invitación" : "Compartido";
   const projectOwnerClass = (project: Project) =>
@@ -192,6 +206,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
   }, [currentUser, selectedProject]);
   const visiblePresence = (selectedProject?.presence || []).filter(
     (presence) => !presence.area.startsWith("chat:")
+  );
+  const remoteCursors = visiblePresence.filter(
+    (presence) => typeof presence.cursorX === "number" && typeof presence.cursorY === "number"
   );
   const activityItems = useMemo(
     () => [...(selectedProject?.activity || [])].reverse(),
@@ -321,6 +338,36 @@ export default function ProjectsPanel({ currentUser }: Props) {
     api.post(`/projects/${selectedProject._id}/activity`, { area, action }).catch(() => {});
   }
 
+  function publishViewPresence(cursor = lastCursorRef.current) {
+    if (!selectedProject || selectedProject.myStatus !== "active") return;
+
+    api.post(`/projects/${selectedProject._id}/activity`, {
+      area: `view:${projectView}`,
+      action: `viendo ${projectViewLabels[projectView]}`,
+      cursorX: cursor?.x,
+      cursorY: cursor?.y,
+    }).catch(() => {});
+  }
+
+  function trackProjectCursor(event: PointerEvent<HTMLDivElement>) {
+    if (!selectedProject || selectedProject.myStatus !== "active" || !workspaceRef.current) return;
+
+    const rect = workspaceRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const cursor = {
+      x: Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1),
+      y: Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1),
+    };
+    lastCursorRef.current = cursor;
+
+    const now = Date.now();
+    if (now - cursorPresenceRef.current < 450) return;
+
+    cursorPresenceRef.current = now;
+    publishViewPresence(cursor);
+  }
+
   function pingChatTyping() {
     if (!selectedProject || selectedProject.myStatus !== "active") return;
     if (chatScope === "direct" && !chatTo) return;
@@ -396,10 +443,30 @@ export default function ProjectsPanel({ currentUser }: Props) {
         );
         setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
       })();
-    }, chatOpen ? 2500 : 5000);
+    }, chatOpen ? 2500 : 1800);
 
     return () => window.clearInterval(timer);
   }, [chatOpen, selectedId]);
+
+  useEffect(() => {
+    if (!selectedProjectId || selectedProjectStatus !== "active") return;
+
+    const projectId = selectedProjectId;
+    const publish = () => {
+      const cursor = lastCursorRef.current;
+      api.post(`/projects/${projectId}/activity`, {
+        area: `view:${projectView}`,
+        action: `viendo ${projectViewLabels[projectView]}`,
+        cursorX: cursor?.x,
+        cursorY: cursor?.y,
+      }).catch(() => {});
+    };
+
+    publish();
+    const timer = window.setInterval(publish, 7000);
+
+    return () => window.clearInterval(timer);
+  }, [projectView, selectedProjectId, selectedProjectStatus]);
 
   useEffect(() => {
     if (!activeUnreadAlertIds.length) return;
@@ -570,7 +637,29 @@ export default function ProjectsPanel({ currentUser }: Props) {
       <div className="projects-layout">
         {!isProjectMobile && <aside className="project-sidebar">{projectNavigation()}</aside>}
 
-        <div className="project-workspace">
+        <div
+          ref={workspaceRef}
+          className="project-workspace"
+          onPointerMove={trackProjectCursor}
+        >
+          {remoteCursors.length > 0 && (
+            <div className="project-cursor-layer" aria-live="polite">
+              {remoteCursors.map((presence) => (
+                <span
+                  key={`${presence.user?.id}-${presence.area}`}
+                  className="project-remote-cursor"
+                  style={{
+                    left: `${(presence.cursorX || 0) * 100}%`,
+                    top: `${(presence.cursorY || 0) * 100}%`,
+                    "--cursor-color": presence.user?.avatarColor || "#2a8b7b",
+                  } as CSSProperties}
+                >
+                  <i aria-hidden="true" />
+                  <b>{presence.user?.name || "Usuario"}</b>
+                </span>
+              ))}
+            </div>
+          )}
           {!selectedProject ? (
             <div className="empty-state">
               <span className="empty-icon">+</span>
