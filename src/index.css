@@ -1095,6 +1095,11 @@ button { letter-spacing: 0; }
   border-radius: 6px;
   background: #ffffff;
 }
+.share-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
 .invite-methods {
   grid-column: 1 / -1;
   display: grid;

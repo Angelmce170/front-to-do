@@ -6,7 +6,6 @@ type Props = {
   inviteEmails: string;
   friends: UserMini[];
   selectedFriendIds: string[];
-  canManageInvites: boolean;
   onInviteEmailsChange: (value: string) => void;
   onToggleFriend: (friendId: string, checked: boolean) => void;
   onCopyLink: () => void;
@@ -20,13 +19,15 @@ export default function ProjectInviteBox({
   inviteEmails,
   friends,
   selectedFriendIds,
-  canManageInvites,
   onInviteEmailsChange,
   onToggleFriend,
   onCopyLink,
   onInviteByEmail,
   onInviteFriends,
 }: Props) {
+  const shareText = `Te invito al proyecto "${project.title}" en To-Do PWA: ${joinLink}`;
+  const whatsAppUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
   return (
     <div className="share-box">
       <div className="share-link-block">
@@ -38,53 +39,56 @@ export default function ProjectInviteBox({
         src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinLink)}`}
         alt="QR de invitación"
       />
-      <button className="btn btn-compact" type="button" onClick={onCopyLink}>
-        Copiar link
-      </button>
+      <div className="share-actions">
+        <button className="btn btn-compact" type="button" onClick={onCopyLink}>
+          Copiar link
+        </button>
+        <a className="btn btn-primary btn-compact" href={whatsAppUrl} target="_blank" rel="noreferrer">
+          WhatsApp
+        </a>
+      </div>
 
-      {canManageInvites && (
-        <div className="invite-methods">
-          <form className="invite-card" onSubmit={onInviteByEmail}>
-            <span>Invitar por correo</span>
-            <div className="invite-row">
-              <input
-                value={inviteEmails}
-                onChange={(event) => onInviteEmailsChange(event.target.value)}
-                placeholder="correo@ejemplo.com, otro@ejemplo.com"
-              />
-              <button className="btn btn-compact">Invitar</button>
-            </div>
-          </form>
-
-          <div className="invite-card">
-            <span>Invitar amigos guardados</span>
-            <div className="friend-picker compact">
-              {friends.length ? (
-                friends.map((friend) => (
-                  <label key={friend.id} className="friend-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedFriendIds.includes(friend.id)}
-                      onChange={(event) => onToggleFriend(friend.id, event.target.checked)}
-                    />
-                    {friend.name}
-                  </label>
-                ))
-              ) : (
-                <small>Busca usuarios y agrégalos como amigos para tenerlos aquí.</small>
-              )}
-            </div>
-            <button
-              className="btn btn-compact"
-              type="button"
-              disabled={!selectedFriendIds.length || project.members.length >= project.participantLimit}
-              onClick={onInviteFriends}
-            >
-              Invitar seleccionados
-            </button>
+      <div className="invite-methods">
+        <form className="invite-card" onSubmit={onInviteByEmail}>
+          <span>Invitar por correo</span>
+          <div className="invite-row">
+            <input
+              value={inviteEmails}
+              onChange={(event) => onInviteEmailsChange(event.target.value)}
+              placeholder="correo@ejemplo.com, otro@ejemplo.com"
+            />
+            <button className="btn btn-compact">Invitar</button>
           </div>
+        </form>
+
+        <div className="invite-card">
+          <span>Invitar amigos guardados</span>
+          <div className="friend-picker compact">
+            {friends.length ? (
+              friends.map((friend) => (
+                <label key={friend.id} className="friend-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedFriendIds.includes(friend.id)}
+                    onChange={(event) => onToggleFriend(friend.id, event.target.checked)}
+                  />
+                  {friend.name}
+                </label>
+              ))
+            ) : (
+              <small>Busca usuarios y agrégalos como amigos para tenerlos aquí.</small>
+            )}
+          </div>
+          <button
+            className="btn btn-compact"
+            type="button"
+            disabled={!selectedFriendIds.length || project.members.length >= project.participantLimit}
+            onClick={onInviteFriends}
+          >
+            Invitar seleccionados
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
