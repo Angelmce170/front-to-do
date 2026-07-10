@@ -16,12 +16,14 @@ type Props = {
   text: string;
   unreadTotal: number;
   unreadByChannel: Record<string, ChatUnreadInfo>;
+  typingByChannel: Record<string, UserMini[]>;
   onOpenChange: (open: boolean) => void;
   onScopeChange: (scope: ChatScope) => void;
   onToChange: (userId: string) => void;
   onTextChange: (text: string) => void;
   onSend: (event: ProjectFormEvent) => void;
-  onActivity: (area: string, action: string) => void;
+  onTyping: () => void;
+  onStopTyping: () => void;
 };
 
 const channelKey = (scope: ChatScope, userId = "") => (scope === "group" ? "group" : `direct:${userId}`);
@@ -35,6 +37,12 @@ function senderSummary(info?: ChatUnreadInfo) {
   return `de ${info.senders.slice(0, 2).join(", ")}${info.senders.length > 2 ? "..." : ""}`;
 }
 
+function typingSummary(users?: UserMini[]) {
+  if (!users?.length) return "";
+  if (users.length === 1) return `${users[0].name} está escribiendo`;
+  return `${users.length} escribiendo`;
+}
+
 export default function ProjectChat({
   project,
   currentUser,
@@ -46,32 +54,44 @@ export default function ProjectChat({
   text,
   unreadTotal,
   unreadByChannel,
+  typingByChannel,
   onOpenChange,
   onScopeChange,
   onToChange,
   onTextChange,
   onSend,
-  onActivity,
+  onTyping,
+  onStopTyping,
 }: Props) {
   const selectedChannel = channelKey(scope, to);
+  const activeTypingUsers = typingByChannel[selectedChannel] || [];
   const activeName =
     scope === "group"
       ? "Grupo"
       : otherMembers.find((member) => member.user?.id === to)?.user?.name || "Directo";
 
   function selectGroup() {
+    onStopTyping();
     onScopeChange("group");
     onToChange("");
   }
 
   function selectDirect(userId: string) {
+    onStopTyping();
     onScopeChange("direct");
     onToChange(userId);
   }
 
   return (
     <div className={open ? "project-chat open" : "project-chat"}>
-      <button className="chat-bubble" type="button" onClick={() => onOpenChange(!open)}>
+      <button
+        className="chat-bubble"
+        type="button"
+        onClick={() => {
+          if (open) onStopTyping();
+          onOpenChange(!open);
+        }}
+      >
         <span>Chat</span>
         {unreadTotal > 0 && <strong className="chat-bubble-count">{unreadTotal}</strong>}
         {open ? "Cerrar" : "Abrir"}
@@ -101,7 +121,7 @@ export default function ProjectChat({
                 <span className="chat-avatar group" aria-hidden="true">G</span>
                 <span className="chat-channel-text">
                   <strong>Grupo</strong>
-                  <small>{senderSummary(unreadByChannel.group) || "Todos"}</small>
+                  <small>{typingSummary(typingByChannel.group) || senderSummary(unreadByChannel.group) || "Todos"}</small>
                 </span>
                 {unreadByChannel.group?.count > 0 && (
                   <span className="chat-unread-count">{unreadByChannel.group.count}</span>
@@ -131,7 +151,7 @@ export default function ProjectChat({
                     </span>
                     <span className="chat-channel-text">
                       <strong>{user.name}</strong>
-                      <small>{unread?.count ? senderSummary(unread) : user.email}</small>
+                      <small>{typingSummary(typingByChannel[key]) || (unread?.count ? senderSummary(unread) : user.email)}</small>
                     </span>
                     {unread?.count > 0 && <span className="chat-unread-count">{unread.count}</span>}
                   </button>
@@ -150,19 +170,33 @@ export default function ProjectChat({
                     <span>{message.text}</span>
                   </p>
                 ))}
-                {!messages.length && (
+                {!messages.length && !activeTypingUsers.length && (
                   <p className="chat-empty">
                     <strong>{activeName}</strong>
                     <span>Sin mensajes todavía.</span>
                   </p>
                 )}
+                {activeTypingUsers.map((user) => (
+                  <p key={`typing-${user.id}`} className="typing-bubble">
+                    <strong>{user.name}</strong>
+                    <span className="typing-dots" aria-label={`${user.name} está escribiendo`}>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </p>
+                ))}
               </div>
 
               <form onSubmit={onSend}>
                 <input
                   value={text}
-                  onChange={(event) => onTextChange(event.target.value)}
-                  onFocus={() => onActivity("chat", "escribiendo en el chat")}
+                  onChange={(event) => {
+                    onTextChange(event.target.value);
+                    onTyping();
+                  }}
+                  onFocus={onTyping}
+                  onBlur={onStopTyping}
                   placeholder={scope === "group" ? "Mensaje para el grupo" : `Mensaje para ${activeName}`}
                   disabled={scope === "direct" && !to}
                 />

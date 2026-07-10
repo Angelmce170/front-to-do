@@ -47,6 +47,41 @@ function alertSender(alert: ProjectAlert) {
   return alertTextData(alert, "authorName") || "Alguien";
 }
 
+function dateParts(value?: string) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return null;
+
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  };
+}
+
+function activityDayKey(value?: string) {
+  const parts = dateParts(value);
+  if (!parts) return "";
+
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function activityMonthKey(value?: string) {
+  const parts = dateParts(value);
+  if (!parts) return "";
+
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
+}
+
+function activityDayLabel(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(year, month - 1, day));
+}
+
+function activityMonthLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
 export default function ProjectsPanel({ currentUser }: Props) {
   const [isProjectMobile, setIsProjectMobile] = useState(() => window.matchMedia("(max-width: 780px)").matches);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -64,10 +99,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [chatScope, setChatScope] = useState<ChatScope>("group");
   const [chatTo, setChatTo] = useState("");
   const [chatText, setChatText] = useState("");
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const [activityDayFilter, setActivityDayFilter] = useState("");
+  const [activityMonthFilter, setActivityMonthFilter] = useState("");
+  const [activityUserFilter, setActivityUserFilter] = useState("");
   const [notice, setNotice] = useState("");
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const activityRef = useRef(0);
+  const typingRef = useRef<Record<string, number>>({});
 
   const selectedProject = projects.find((project) => project._id === selectedId) || null;
   const projectOwnerLabel = (project: Project) =>
@@ -129,6 +169,62 @@ export default function ProjectsPanel({ currentUser }: Props) {
     [chatOpen, currentChatKey, unreadMessageAlerts]
   );
   const chatUnreadTotal = unreadMessageAlerts.length;
+  const typingByChannel = useMemo(() => {
+    const typing: Record<string, UserMini[]> = {};
+    if (!selectedProject || !currentUser?.id) return typing;
+
+    for (const presence of selectedProject.presence || []) {
+      if (!presence.user) continue;
+
+      let key = "";
+      if (presence.area === "chat:group") {
+        key = "group";
+      } else if (presence.area === `chat:direct:${currentUser.id}`) {
+        key = chatKey("direct", presence.user.id);
+      }
+
+      if (!key) continue;
+      typing[key] = [...(typing[key] || []), presence.user];
+    }
+
+    return typing;
+  }, [currentUser, selectedProject]);
+  const visiblePresence = (selectedProject?.presence || []).filter(
+    (presence) => !presence.area.startsWith("chat:")
+  );
+  const activityItems = useMemo(
+    () => [...(selectedProject?.activity || [])].reverse(),
+    [selectedProject]
+  );
+  const activityDayOptions = useMemo(
+    () => [...new Set(activityItems.map((activity) => activityDayKey(activity.createdAt)).filter(Boolean))],
+    [activityItems]
+  );
+  const activityMonthOptions = useMemo(
+    () => [...new Set(activityItems.map((activity) => activityMonthKey(activity.createdAt)).filter(Boolean))],
+    [activityItems]
+  );
+  const activityUsers = useMemo(() => {
+    const users = new Map<string, UserMini>();
+
+    for (const activity of activityItems) {
+      if (activity.user?.id) users.set(activity.user.id, activity.user);
+    }
+
+    return [...users.values()];
+  }, [activityItems]);
+  const filteredActivity = useMemo(
+    () =>
+      activityItems.filter((activity) => {
+        const matchesDay = !activityDayFilter || activityDayKey(activity.createdAt) === activityDayFilter;
+        const matchesMonth = !activityMonthFilter || activityMonthKey(activity.createdAt) === activityMonthFilter;
+        const matchesUser = !activityUserFilter || activity.user?.id === activityUserFilter;
+
+        return matchesDay && matchesMonth && matchesUser;
+      }),
+    [activityDayFilter, activityItems, activityMonthFilter, activityUserFilter]
+  );
+  const visibleActivity = activityExpanded ? filteredActivity : activityItems.slice(0, 10);
   const sortedSchedule = [...(selectedProject?.tasks || [])].sort((a, b) => {
     const aTime = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
     const bTime = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
@@ -138,6 +234,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
   function selectProject(projectId: string) {
     setSelectedId((current) => (current === projectId ? "" : projectId));
     setChatOpen(false);
+    setActivityExpanded(false);
+    setActivityDayFilter("");
+    setActivityMonthFilter("");
+    setActivityUserFilter("");
   }
 
   function projectNavigation() {
@@ -220,6 +320,24 @@ export default function ProjectsPanel({ currentUser }: Props) {
     api.post(`/projects/${selectedProject._id}/activity`, { area, action }).catch(() => {});
   }
 
+  function pingChatTyping() {
+    if (!selectedProject || selectedProject.myStatus !== "active") return;
+    if (chatScope === "direct" && !chatTo) return;
+
+    const area = chatScope === "group" ? "chat:group" : `chat:direct:${chatTo}`;
+    const now = Date.now();
+    if (now - (typingRef.current[area] || 0) < 1500) return;
+
+    typingRef.current[area] = now;
+    api.post(`/projects/${selectedProject._id}/activity`, { area, action: "escribiendo" }).catch(() => {});
+  }
+
+  function clearChatTyping() {
+    if (!selectedProject || selectedProject.myStatus !== "active") return;
+
+    api.post(`/projects/${selectedProject._id}/activity`, { area: "chat:clear", action: "idle" }).catch(() => {});
+  }
+
   useEffect(() => {
     void (async () => {
       const params = new URLSearchParams(window.location.search);
@@ -277,10 +395,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
         );
         setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
       })();
-    }, 5000);
+    }, chatOpen ? 2500 : 5000);
 
     return () => window.clearInterval(timer);
-  }, [selectedId]);
+  }, [chatOpen, selectedId]);
 
   useEffect(() => {
     if (!activeUnreadAlertIds.length) return;
@@ -404,6 +522,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     });
     applyProject(projectFromResponse(data.project));
     setChatText("");
+    clearChatTyping();
   }
 
   async function copyJoinLink() {
@@ -492,9 +611,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
                 </div>
               </div>
 
-              {selectedProject.presence.length > 0 && (
+              {visiblePresence.length > 0 && (
                 <div className="presence-strip">
-                  {selectedProject.presence.map((presence) => (
+                  {visiblePresence.map((presence) => (
                     <span key={`${presence.user?.id}-${presence.area}`}>
                       {presence.user?.name} está {presence.action}
                     </span>
@@ -536,14 +655,95 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
               {projectView === "overview" && (
                 <div className="project-card activity-card">
-                  <h4>Actividad reciente</h4>
-                  {(selectedProject.activity || []).slice().reverse().map((activity) => (
-                    <p key={activity._id}>
-                      <strong>{activity.user?.name || "Usuario"}</strong> {activity.text}
-                      <small>{formatDate(activity.createdAt)}</small>
-                    </p>
-                  ))}
-                  {!selectedProject.activity.length && <p>No hay actividad todavía.</p>}
+                  <div className="activity-card-head">
+                    <div>
+                      <h4>{activityExpanded ? "Actividad del proyecto" : "Actividad reciente"}</h4>
+                      <span>{activityExpanded ? `${filteredActivity.length} movimientos` : "Últimas 10"}</span>
+                    </div>
+                    {activityExpanded && (
+                      <button
+                        className="btn btn-compact"
+                        type="button"
+                        onClick={() => {
+                          setActivityDayFilter("");
+                          setActivityMonthFilter("");
+                          setActivityUserFilter("");
+                        }}
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+
+                  {activityExpanded && (
+                    <div className="activity-filters">
+                      <label className="field">
+                        <span>Día</span>
+                        <select
+                          value={activityDayFilter}
+                          onChange={(event) => setActivityDayFilter(event.target.value)}
+                        >
+                          <option value="">Todos los días</option>
+                          {activityDayOptions.map((day) => (
+                            <option key={day} value={day}>
+                              {activityDayLabel(day)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Mes</span>
+                        <select
+                          value={activityMonthFilter}
+                          onChange={(event) => setActivityMonthFilter(event.target.value)}
+                        >
+                          <option value="">Todos los meses</option>
+                          {activityMonthOptions.map((month) => (
+                            <option key={month} value={month}>
+                              {activityMonthLabel(month)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Usuario</span>
+                        <select
+                          value={activityUserFilter}
+                          onChange={(event) => setActivityUserFilter(event.target.value)}
+                        >
+                          <option value="">Todos los usuarios</option>
+                          {activityUsers.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="activity-list">
+                    {visibleActivity.map((activity) => (
+                      <p key={activity._id}>
+                        <strong>{activity.user?.name || "Usuario"}</strong> {activity.text}
+                        <small>{formatDate(activity.createdAt)}</small>
+                      </p>
+                    ))}
+                  </div>
+
+                  {!activityItems.length && <p>No hay actividad todavía.</p>}
+                  {activityItems.length > 10 && (
+                    <button
+                      className="btn activity-toggle-button"
+                      type="button"
+                      onClick={() => setActivityExpanded((expanded) => !expanded)}
+                    >
+                      {activityExpanded ? "Ver menos" : "Ver todo"}
+                    </button>
+                  )}
+                  {activityExpanded && activityItems.length > 0 && !visibleActivity.length && (
+                    <p className="inline-message">No hay actividad con esos filtros.</p>
+                  )}
                 </div>
               )}
 
@@ -686,12 +886,14 @@ export default function ProjectsPanel({ currentUser }: Props) {
           text={chatText}
           unreadTotal={chatUnreadTotal}
           unreadByChannel={unreadByChannel}
+          typingByChannel={typingByChannel}
           onOpenChange={setChatOpen}
           onScopeChange={setChatScope}
           onToChange={setChatTo}
           onTextChange={setChatText}
           onSend={sendMessage}
-          onActivity={pingActivity}
+          onTyping={pingChatTyping}
+          onStopTyping={clearChatTyping}
         />
       )}
 
