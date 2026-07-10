@@ -7,7 +7,13 @@ import ProjectChat from "../projects/ProjectChat";
 import ProjectCreateForm from "../projects/ProjectCreateForm";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
-import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
+import {
+  clearRealtimeProjectPresence,
+  publishRealtimeProjectPresence,
+  realtimePresenceReady,
+  watchRealtimeProjectPresence,
+} from "../projects/realtimePresence";
+import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectPresence, ProjectTask, UserMini } from "../projects/types";
 
 type Props = {
   currentUser: UserMini | null;
@@ -91,7 +97,7 @@ const projectViewLabels = {
 
 type ProjectView = keyof typeof projectViewLabels;
 
-function clearProjectPresence(projectId: string) {
+function clearBackendProjectPresence(projectId: string) {
   const token = localStorage.getItem("token");
   const baseUrl = String(api.defaults.baseURL || "").replace(/\/$/, "");
   if (!projectId || !token || !baseUrl) return;
@@ -115,6 +121,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [projectAttachment, setProjectAttachment] = useState<ProjectAttachment | null>(null);
   const [friends, setFriends] = useState<UserMini[]>([]);
   const [alerts, setAlerts] = useState<ProjectAlert[]>([]);
+  const [realtimePresenceState, setRealtimePresenceState] = useState<{ projectId: string; items: ProjectPresence[] }>({
+    projectId: "",
+    items: [],
+  });
   const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
@@ -136,6 +146,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
   const selectedProjectIdRef = useRef("");
   const selectedProjectStatusRef = useRef("");
+  const currentUserRef = useRef<UserMini | null>(null);
   const projectViewRef = useRef<ProjectView>("overview");
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const typingRef = useRef<Record<string, number>>({});
@@ -143,6 +154,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const selectedProject = projects.find((project) => project._id === selectedId) || null;
   const selectedProjectId = selectedProject?._id || "";
   const selectedProjectStatus = selectedProject?.myStatus || "";
+  const useRealtimePresence = realtimePresenceReady();
   const projectOwnerLabel = (project: Project) =>
     project.creator?.id === currentUser?.id ? "Propio" : project.myStatus === "invited" ? "Invitación" : "Compartido";
   const projectOwnerClass = (project: Project) =>
@@ -223,9 +235,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     return typing;
   }, [currentUser, selectedProject]);
-  const visiblePresence = (selectedProject?.presence || []).filter(
+  const backendVisiblePresence = (selectedProject?.presence || []).filter(
     (presence) => !presence.area.startsWith("chat:")
   );
+  const realtimePresence = realtimePresenceState.projectId === selectedProjectId ? realtimePresenceState.items : [];
+  const visiblePresence = useRealtimePresence ? realtimePresence : backendVisiblePresence;
   const remoteCursors = visiblePresence.filter(
     (presence) => typeof presence.cursorX === "number" && typeof presence.cursorY === "number"
   );
@@ -357,15 +371,31 @@ export default function ProjectsPanel({ currentUser }: Props) {
     api.post(`/projects/${selectedProject._id}/activity`, { area, action }).catch(() => {});
   }
 
-  function publishViewPresence(cursor = lastCursorRef.current) {
+  function publishViewPresence(cursor = lastCursorRef.current, syncBackend = false) {
     if (!selectedProject || selectedProject.myStatus !== "active") return;
 
-    api.post(`/projects/${selectedProject._id}/activity`, {
-      area: `view:${projectView}`,
-      action: `viendo ${projectViewLabels[projectView]}`,
-      cursorX: cursor?.x,
-      cursorY: cursor?.y,
-    }).catch(() => {});
+    const area = `view:${projectView}`;
+    const action = `viendo ${projectViewLabels[projectView]}`;
+    const sentRealtime = Boolean(
+      useRealtimePresence &&
+      currentUser &&
+      publishRealtimeProjectPresence({
+        projectId: selectedProject._id,
+        user: currentUser,
+        area,
+        action,
+        cursor,
+      })
+    );
+
+    if (!sentRealtime || syncBackend) {
+      api.post(`/projects/${selectedProject._id}/activity`, {
+        area,
+        action,
+        cursorX: cursor?.x,
+        cursorY: cursor?.y,
+      }).catch(() => {});
+    }
   }
 
   function trackProjectCursor(event: PointerEvent<HTMLDivElement>) {
@@ -381,7 +411,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     lastCursorRef.current = cursor;
 
     const now = Date.now();
-    if (now - cursorPresenceRef.current < 280) return;
+    if (now - cursorPresenceRef.current < (useRealtimePresence ? 80 : 280)) return;
 
     cursorPresenceRef.current = now;
     publishViewPresence(cursor);
@@ -449,8 +479,17 @@ export default function ProjectsPanel({ currentUser }: Props) {
   useEffect(() => {
     selectedProjectIdRef.current = selectedProjectId;
     selectedProjectStatusRef.current = selectedProjectStatus;
+    currentUserRef.current = currentUser;
     projectViewRef.current = projectView;
-  }, [projectView, selectedProjectId, selectedProjectStatus]);
+  }, [currentUser, projectView, selectedProjectId, selectedProjectStatus]);
+
+  useEffect(() => {
+    if (!useRealtimePresence || !selectedProjectId || selectedProjectStatus !== "active" || !currentUser?.id) return;
+
+    return watchRealtimeProjectPresence(selectedProjectId, currentUser.id, (items) => {
+      setRealtimePresenceState({ projectId: selectedProjectId, items });
+    });
+  }, [currentUser?.id, selectedProjectId, selectedProjectStatus, useRealtimePresence]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -476,23 +515,45 @@ export default function ProjectsPanel({ currentUser }: Props) {
   useEffect(() => {
     if (!selectedProjectId) return;
 
-    return () => clearProjectPresence(selectedProjectId);
-  }, [selectedProjectId]);
+    return () => {
+      clearBackendProjectPresence(selectedProjectId);
+      if (currentUser?.id) clearRealtimeProjectPresence(selectedProjectId, currentUser.id);
+    };
+  }, [currentUser?.id, selectedProjectId]);
 
   useEffect(() => {
-    const clearCurrentPresence = () => clearProjectPresence(selectedProjectIdRef.current);
+    const clearCurrentPresence = () => {
+      const projectId = selectedProjectIdRef.current;
+      clearBackendProjectPresence(projectId);
+      if (currentUserRef.current?.id) clearRealtimeProjectPresence(projectId, currentUserRef.current.id);
+    };
     const publishCurrentPresence = () => {
       const projectId = selectedProjectIdRef.current;
       if (!projectId || selectedProjectStatusRef.current !== "active") return;
 
       const view = projectViewRef.current;
       const cursor = lastCursorRef.current;
-      api.post(`/projects/${projectId}/activity`, {
-        area: `view:${view}`,
-        action: `viendo ${projectViewLabels[view]}`,
-        cursorX: cursor?.x,
-        cursorY: cursor?.y,
-      }).catch(() => {});
+      const area = `view:${view}`;
+      const action = `viendo ${projectViewLabels[view]}`;
+      const sentRealtime = Boolean(
+        currentUserRef.current &&
+        publishRealtimeProjectPresence({
+          projectId,
+          user: currentUserRef.current,
+          area,
+          action,
+          cursor,
+        })
+      );
+
+      if (!sentRealtime) {
+        api.post(`/projects/${projectId}/activity`, {
+          area,
+          action,
+          cursorX: cursor?.x,
+          cursorY: cursor?.y,
+        }).catch(() => {});
+      }
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
@@ -517,22 +578,37 @@ export default function ProjectsPanel({ currentUser }: Props) {
   useEffect(() => {
     if (!selectedProjectId || selectedProjectStatus !== "active") return;
 
-    const projectId = selectedProjectId;
     const publish = () => {
       const cursor = lastCursorRef.current;
-      api.post(`/projects/${projectId}/activity`, {
-        area: `view:${projectView}`,
-        action: `viendo ${projectViewLabels[projectView]}`,
-        cursorX: cursor?.x,
-        cursorY: cursor?.y,
-      }).catch(() => {});
+      const area = `view:${projectView}`;
+      const action = `viendo ${projectViewLabels[projectView]}`;
+      const sentRealtime = Boolean(
+        useRealtimePresence &&
+        currentUser &&
+        publishRealtimeProjectPresence({
+          projectId: selectedProjectId,
+          user: currentUser,
+          area,
+          action,
+          cursor,
+        })
+      );
+
+      if (!sentRealtime) {
+        api.post(`/projects/${selectedProjectId}/activity`, {
+          area,
+          action,
+          cursorX: cursor?.x,
+          cursorY: cursor?.y,
+        }).catch(() => {});
+      }
     };
 
     publish();
     const timer = window.setInterval(publish, 4000);
 
     return () => window.clearInterval(timer);
-  }, [projectView, selectedProjectId, selectedProjectStatus]);
+  }, [currentUser, projectView, selectedProjectId, selectedProjectStatus, useRealtimePresence]);
 
   useEffect(() => {
     if (!activeUnreadAlertIds.length) return;
