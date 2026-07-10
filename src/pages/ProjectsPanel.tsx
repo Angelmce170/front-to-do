@@ -6,7 +6,7 @@ import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
 import ProjectCreateForm from "../projects/ProjectCreateForm";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
-import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
+import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse, toDateInput } from "../projects/projectUtils";
 import {
   clearRealtimeProjectPresence,
   publishRealtimeProjectPresence,
@@ -152,6 +152,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
   });
   const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
+  const [editingTaskId, setEditingTaskId] = useState("");
+  const [editTaskForm, setEditTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -376,6 +378,30 @@ export default function ProjectsPanel({ currentUser }: Props) {
         ? [...new Set([...current.assigneeIds, userId])]
         : current.assigneeIds.filter((id) => id !== userId),
     }));
+  }
+
+  function toggleEditTaskAssignee(userId: string, checked: boolean) {
+    setEditTaskForm((current) => ({
+      ...current,
+      assigneeIds: checked
+        ? [...new Set([...current.assigneeIds, userId])]
+        : current.assigneeIds.filter((id) => id !== userId),
+    }));
+  }
+
+  function startEditingTask(task: ProjectTask) {
+    setEditingTaskId(task._id);
+    setEditTaskForm({
+      title: task.title,
+      description: task.description || "",
+      assigneeIds: taskAssignees(task).map((user) => user.id),
+      dueAt: toDateInput(task.dueAt),
+    });
+  }
+
+  function cancelEditingTask() {
+    setEditingTaskId("");
+    setEditTaskForm(emptyTaskForm);
   }
 
   function renderLiveDraft(draft: ProjectNoteDraft) {
@@ -852,6 +878,31 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     const { data } = await api.patch(`/projects/${selectedProject._id}/tasks/${task._id}`, { status });
     applyProject(projectFromResponse(data.project));
+  }
+
+  async function saveTaskEdit(event: ProjectFormEvent, task: ProjectTask) {
+    event.preventDefault();
+    if (!selectedProject || !editTaskForm.title.trim() || !editTaskForm.assigneeIds.length) return;
+
+    const { data } = await api.patch(`/projects/${selectedProject._id}/tasks/${task._id}`, {
+      title: editTaskForm.title,
+      description: editTaskForm.description,
+      assigneeIds: editTaskForm.assigneeIds,
+      dueAt: fromDateInput(editTaskForm.dueAt),
+    });
+    applyProject(projectFromResponse(data.project));
+    cancelEditingTask();
+    setNotice("Tarea actualizada.");
+  }
+
+  async function deleteProjectTask(task: ProjectTask) {
+    if (!selectedProject) return;
+    if (!window.confirm(`¿Borrar "${task.title}"?`)) return;
+
+    const { data } = await api.delete(`/projects/${selectedProject._id}/tasks/${task._id}`);
+    applyProject(projectFromResponse(data.project));
+    if (editingTaskId === task._id) cancelEditingTask();
+    setNotice("Tarea eliminada.");
   }
 
   function pingTaskNoteTyping(task: ProjectTask) {
@@ -1331,16 +1382,114 @@ export default function ProjectsPanel({ currentUser }: Props) {
                       const canUseNotes = Boolean(task.canWriteNotes || selectedProject.isLeader || canChangeStatus);
                       const taskNotePresence = notePresenceByTask[task._id] || [];
                       const liveNoteDrafts = realtimeNoteDrafts[task._id] || [];
+                      const isEditingTask = selectedProject.isLeader && editingTaskId === task._id;
                       return (
                         <article key={task._id} className="project-card project-task-item">
+                          {isEditingTask ? (
+                            <form className="task-edit-form" onSubmit={(event) => void saveTaskEdit(event, task)}>
+                              <div className="task-edit-head">
+                                <div>
+                                  <p className="eyebrow">EDITAR TAREA</p>
+                                  <h4>{task.title}</h4>
+                                </div>
+                                <button
+                                  className="btn btn-compact btn-danger"
+                                  type="button"
+                                  onClick={() => void deleteProjectTask(task)}
+                                >
+                                  Borrar
+                                </button>
+                              </div>
+                              <label className="field">
+                                <span>Título</span>
+                                <input
+                                  value={editTaskForm.title}
+                                  onChange={(event) => setEditTaskForm({ ...editTaskForm, title: event.target.value })}
+                                />
+                              </label>
+                              <label className="field">
+                                <span>Descripción</span>
+                                <textarea
+                                  value={editTaskForm.description}
+                                  onChange={(event) => setEditTaskForm({ ...editTaskForm, description: event.target.value })}
+                                  rows={2}
+                                />
+                              </label>
+                              <div className="assignment-row">
+                                <div className="field">
+                                  <span>Responsables</span>
+                                  <div className="assignee-picker">
+                                    {activeMembers.map((member) => {
+                                      const user = member.user;
+                                      if (!user) return null;
+
+                                      return (
+                                        <label key={user.id} className="assignee-option">
+                                          <input
+                                            type="checkbox"
+                                            checked={editTaskForm.assigneeIds.includes(user.id)}
+                                            onChange={(event) => toggleEditTaskAssignee(user.id, event.target.checked)}
+                                          />
+                                          <span
+                                            className="participant-avatar"
+                                            style={{ backgroundColor: user.avatarColor || "#2a8b7b" }}
+                                            aria-hidden="true"
+                                          >
+                                            {user.name.trim().charAt(0).toUpperCase() || "U"}
+                                          </span>
+                                          <span>
+                                            <strong>{user.name}</strong>
+                                            <small>{user.email}</small>
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <label className="field">
+                                  <span>Fecha</span>
+                                  <input
+                                    type="datetime-local"
+                                    value={editTaskForm.dueAt}
+                                    onChange={(event) => setEditTaskForm({ ...editTaskForm, dueAt: event.target.value })}
+                                  />
+                                </label>
+                              </div>
+                              <div className="task-edit-actions">
+                                <button className="btn btn-primary" type="submit">
+                                  Guardar cambios
+                                </button>
+                                <button className="btn btn-compact" type="button" onClick={cancelEditingTask}>
+                                  Cancelar
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
                           <div className="task-row-head">
                             <div>
                               <strong>{task.title}</strong>
                               <p>{task.description || "Sin descripción"}</p>
                             </div>
-                            <span className={`task-status ${task.status.toLowerCase().replace(/\s/g, "-")}`}>
-                              {task.status}
-                            </span>
+                            <div className="project-task-actions">
+                              <span className={`task-status ${task.status.toLowerCase().replace(/\s/g, "-")}`}>
+                                {task.status}
+                              </span>
+                              {selectedProject.isLeader && selectedProject.myStatus === "active" && (
+                                <div className="task-actions">
+                                  <button className="btn btn-compact" type="button" onClick={() => startEditingTask(task)}>
+                                    Editar
+                                  </button>
+                                  <button
+                                    className="btn btn-compact btn-danger"
+                                    type="button"
+                                    onClick={() => void deleteProjectTask(task)}
+                                  >
+                                    Borrar
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="task-meta-line">
                             <span>Responsables: {assignees.length ? assignees.map((user) => `${user.name} (${user.email})`).join(", ") : "Sin asignar"}</span>
@@ -1450,6 +1599,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                 </form>
                               )}
                             </div>
+                          )}
+                            </>
                           )}
                         </article>
                       );

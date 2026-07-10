@@ -1520,6 +1520,32 @@ button { letter-spacing: 0; }
 .project-task-browser .toolbar { margin-bottom: 0; }
 .project-task-summary { margin-bottom: 0; }
 .project-task-item { display: grid; gap: 12px; }
+.project-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
+}
+.project-task-actions .task-actions { flex-wrap: wrap; justify-content: flex-end; }
+.task-edit-form {
+  display: grid;
+  gap: 12px;
+}
+.task-edit-head,
+.task-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.task-edit-head h4 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 17px;
+}
+.task-edit-actions { justify-content: flex-end; }
 .task-row-head {
   display: flex;
   justify-content: space-between;
@@ -2176,6 +2202,9 @@ button { letter-spacing: 0; }
     grid-template-columns: 1fr;
   }
   .task-row-head { flex-direction: column; }
+  .project-task-actions { justify-content: flex-start; }
+  .task-edit-actions { justify-content: stretch; }
+  .task-edit-actions .btn { flex: 1; }
   .chat-panel {
     right: -10px;
     bottom: 56px;

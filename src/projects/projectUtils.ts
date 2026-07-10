@@ -18,6 +18,16 @@ export function fromDateInput(value: string) {
   return value ? new Date(value).toISOString() : null;
 }
 
+export function toDateInput(value?: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
 export function formatDate(value?: string | null) {
   if (!value) return "Sin fecha";
 
