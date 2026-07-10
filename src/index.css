@@ -310,6 +310,7 @@ button { letter-spacing: 0; }
 .dashboard-shell { min-height: 100vh; background: #f4f7fb; }
 
 .dashboard-header {
+  position: relative;
   min-height: 76px;
   display: flex;
   align-items: center;
@@ -1885,9 +1886,15 @@ button { letter-spacing: 0; }
     gap: 6px;
   }
   .notification-trigger-label { display: none; }
+  .notification-center { position: static; }
   .notification-dropdown {
-    right: -76px;
-    width: min(360px, calc(100vw - 32px));
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: calc(100dvh - 160px);
+    overflow: auto;
   }
   .profile-menu { min-width: 0; }
   .profile-trigger {
