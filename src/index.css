@@ -1584,6 +1584,52 @@ button { letter-spacing: 0; }
   font-size: 11px;
   font-weight: 800;
 }
+.note-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #f5f7fa;
+}
+.note-mode-toggle button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #526175;
+  font-weight: 900;
+  cursor: pointer;
+}
+.note-mode-toggle button.active {
+  background: #172033;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(23, 32, 51, .16);
+}
+.shared-note-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #d7ebe7;
+  border-radius: 8px;
+  background: #f2fbf9;
+  color: #1f6c60;
+  font-size: 12px;
+  font-weight: 850;
+}
+.shared-note-callout button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #2a8b7b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
 .task-notes-list {
   display: grid;
   gap: 8px;
@@ -1625,6 +1671,12 @@ button { letter-spacing: 0; }
   border-color: #cbe8e3;
   background: #f5fcfa;
 }
+.shared-note-item {
+  border-style: dashed;
+}
+.shared-note-avatar {
+  background: #172033;
+}
 .live-note-text {
   position: relative;
   min-height: 32px;
@@ -1637,6 +1689,9 @@ button { letter-spacing: 0; }
   font-size: 14px !important;
   line-height: 1.65 !important;
   white-space: pre-wrap;
+}
+.shared-live-note-text {
+  min-height: 42px;
 }
 .live-note-caret {
   position: relative;
