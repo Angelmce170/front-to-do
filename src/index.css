@@ -1516,6 +1516,8 @@ button { letter-spacing: 0; }
 .assignee-option strong { color: #172033; font-size: 13px; }
 .assignee-option small { color: #718096; font-size: 11px; font-weight: 700; }
 .project-task-list { display: grid; gap: 10px; }
+.project-task-browser { margin-top: 0; }
+.project-task-browser .toolbar { margin-bottom: 0; }
 .project-task-summary { margin-bottom: 0; }
 .project-task-item { display: grid; gap: 12px; }
 .task-row-head {

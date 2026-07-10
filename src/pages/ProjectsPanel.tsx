@@ -105,6 +105,13 @@ const projectViewLabels = {
 } as const;
 
 type ProjectView = keyof typeof projectViewLabels;
+type ProjectTaskFilter = "all" | "active" | "completed";
+
+const projectTaskFilters: [ProjectTaskFilter, string][] = [
+  ["all", "Todas"],
+  ["active", "Activas"],
+  ["completed", "Hechas"],
+];
 
 const emptyRealtimeNoteDrafts: Record<string, ProjectNoteDraft[]> = {};
 
@@ -148,6 +155,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [projectTaskSearch, setProjectTaskSearch] = useState("");
+  const [projectTaskFilter, setProjectTaskFilter] = useState<ProjectTaskFilter>("all");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatScope, setChatScope] = useState<ChatScope>("group");
   const [chatTo, setChatTo] = useState("");
@@ -332,6 +341,28 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     return { total, pending, done, progress };
   }, [selectedProject?.tasks]);
+  const filteredProjectTasks = useMemo(() => {
+    const query = projectTaskSearch.trim().toLowerCase();
+
+    return (selectedProject?.tasks || []).filter((task) => {
+      const assigneeText = taskAssignees(task)
+        .map((user) => `${user.name} ${user.email}`)
+        .join(" ")
+        .toLowerCase();
+      const matchesText =
+        !query ||
+        task.title.toLowerCase().includes(query) ||
+        (task.description || "").toLowerCase().includes(query) ||
+        task.status.toLowerCase().includes(query) ||
+        assigneeText.includes(query);
+      const matchesFilter =
+        projectTaskFilter === "all" ||
+        (projectTaskFilter === "active" && task.status !== "Completada") ||
+        (projectTaskFilter === "completed" && task.status === "Completada");
+
+      return matchesText && matchesFilter;
+    });
+  }, [projectTaskFilter, projectTaskSearch, selectedProject?.tasks]);
 
   function taskAssignees(task: ProjectTask): UserMini[] {
     const users = task.assignees?.length ? task.assignees : task.assignedTo ? [task.assignedTo] : [];
@@ -1260,8 +1291,41 @@ export default function ProjectsPanel({ currentUser }: Props) {
                     </form>
                   )}
 
+                  <section className="tasks-section project-task-browser">
+                    <div className="tasks-heading">
+                      <div>
+                        <p className="eyebrow">TU LISTA</p>
+                        <h2>Tareas</h2>
+                      </div>
+                      <span className="result-count">{filteredProjectTasks.length} de {selectedProject.tasks.length}</span>
+                    </div>
+
+                    <div className="toolbar">
+                      <label className="search-box">
+                        <span aria-hidden="true">⌕</span>
+                        <input
+                          placeholder="Buscar tareas..."
+                          value={projectTaskSearch}
+                          onChange={(event) => setProjectTaskSearch(event.target.value)}
+                        />
+                      </label>
+                      <div className="filters" aria-label="Filtrar tareas del proyecto">
+                        {projectTaskFilters.map(([value, label]) => (
+                          <button
+                            key={value}
+                            className={projectTaskFilter === value ? "chip active" : "chip"}
+                            onClick={() => setProjectTaskFilter(value)}
+                            type="button"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
                   <div className="project-task-list">
-                    {selectedProject.tasks.map((task) => {
+                    {filteredProjectTasks.map((task) => {
                       const assignees = taskAssignees(task);
                       const canChangeStatus = assignees.some((user) => user?.id === currentUser?.id);
                       const canUseNotes = Boolean(task.canWriteNotes || selectedProject.isLeader || canChangeStatus);
@@ -1391,6 +1455,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
                       );
                     })}
                     {!selectedProject.tasks.length && <p className="inline-message">Todavía no hay tareas en este proyecto.</p>}
+                    {selectedProject.tasks.length > 0 && !filteredProjectTasks.length && (
+                      <p className="inline-message">No hay tareas con esos filtros.</p>
+                    )}
                   </div>
                 </div>
               )}
