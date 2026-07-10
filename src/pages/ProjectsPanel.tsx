@@ -621,13 +621,14 @@ export default function ProjectsPanel({ currentUser }: Props) {
                 </div>
               )}
 
-              {selectedProject.mode === "group" && selectedProject.isLeader && (
+              {selectedProject.mode === "group" && selectedProject.myStatus === "active" && (
                 <ProjectInviteBox
                   project={selectedProject}
                   joinLink={joinLink}
                   inviteEmails={inviteEmails}
                   friends={friends}
                   selectedFriendIds={inviteFriendIds}
+                  canManageInvites={selectedProject.isLeader}
                   onInviteEmailsChange={setInviteEmails}
                   onToggleFriend={(friendId, checked) =>
                     setInviteFriendIds((current) =>
