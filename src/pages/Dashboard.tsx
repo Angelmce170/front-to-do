@@ -10,6 +10,7 @@ import {
   type OutboxOp,
 } from "../offline/db";
 import { syncNow } from "../offline/sync";
+import NotificationMenu from "../notifications/NotificationMenu";
 import ProjectsPanel from "./ProjectsPanel";
 
 type Status = "Pendiente" | "En Progreso" | "Completada";
@@ -670,6 +671,8 @@ export default function Dashboard() {
               </form>
             )}
           </div>
+
+          <NotificationMenu />
 
           <span className={online ? "connection online" : "connection offline"}>
             <span className="connection-dot" />
