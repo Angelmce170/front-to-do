@@ -323,6 +323,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const bTime = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
     return aTime - bTime;
   });
+  const projectTaskStats = useMemo(() => {
+    const tasks = selectedProject?.tasks || [];
+    const total = tasks.length;
+    const done = tasks.filter((task) => task.status === "Completada").length;
+    const pending = total - done;
+    const progress = total ? Math.round((done / total) * 100) : 0;
+
+    return { total, pending, done, progress };
+  }, [selectedProject?.tasks]);
 
   function taskAssignees(task: ProjectTask): UserMini[] {
     const users = task.assignees?.length ? task.assignees : task.assignedTo ? [task.assignedTo] : [];
@@ -1175,6 +1184,19 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
               {projectView === "tasks" && (
                 <div className="project-tasks">
+                  <section className="summary-strip project-task-summary" aria-label="Resumen de tareas del proyecto">
+                    <div><strong>{projectTaskStats.total}</strong><span>Total</span></div>
+                    <div><strong>{projectTaskStats.pending}</strong><span>Pendientes</span></div>
+                    <div><strong>{projectTaskStats.done}</strong><span>Completadas</span></div>
+                    <div className="progress-summary">
+                      <span>Progreso</span>
+                      <strong>{projectTaskStats.progress}%</strong>
+                      <span className="progress-track">
+                        <span style={{ width: `${projectTaskStats.progress}%` }} />
+                      </span>
+                    </div>
+                  </section>
+
                   {selectedProject.isLeader && selectedProject.myStatus === "active" && (
                     <form className="project-card task-assignment" onSubmit={createTask}>
                       <h4>Asignar tarea</h4>
