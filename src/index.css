@@ -1693,6 +1693,19 @@ button { letter-spacing: 0; }
 .shared-live-note-text {
   min-height: 42px;
 }
+.shared-live-note-grid {
+  display: grid;
+  gap: 9px;
+  margin-top: 8px;
+}
+.shared-live-note-block {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #d7ebe7;
+  border-radius: 8px;
+  background: #ffffff;
+}
 .live-note-caret {
   position: relative;
   display: inline-block;

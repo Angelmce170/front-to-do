@@ -136,19 +136,16 @@ export function watchRealtimeProjectSharedNoteDrafts(
 
       for (const [taskId, value] of Object.entries(tasks)) {
         const item = value as {
-          content?: { message?: string; updatedAt?: number };
           editors?: Record<string, unknown>;
         };
-        const message = typeof item.content?.message === "string" ? item.content.message : "";
         const editors = Object.values(item.editors || {})
           .map(normalizeDraft)
           .filter((draft): draft is ProjectNoteDraft => Boolean(draft && draft.user.id !== currentUserId));
 
-        if (message.trim() || editors.length) {
+        if (editors.length) {
           next[taskId] = {
-            message,
             editors,
-            updatedAt: item.content?.updatedAt,
+            updatedAt: Math.max(...editors.map((editor) => Number(editor.updatedAt || 0))),
           };
         }
       }
@@ -162,7 +159,6 @@ export function watchRealtimeProjectSharedNoteDrafts(
 export function publishRealtimeSharedTaskNoteDraft({ projectId, taskId, user, message, cursorIndex }: DraftInput) {
   if (!realtimeDatabase || !projectId || !taskId || !user.id) return false;
 
-  const contentRef = ref(realtimeDatabase, `${sharedTaskDraftPath(projectId, taskId)}/content`);
   const editorRef = ref(realtimeDatabase, sharedTaskEditorPath(projectId, taskId, user.id));
   const registrationKey = `shared:${projectId}:${taskId}:${user.id}`;
   if (!disconnectRegistrations.has(registrationKey)) {
@@ -172,10 +168,6 @@ export function publishRealtimeSharedTaskNoteDraft({ projectId, taskId, user, me
     });
   }
 
-  void set(contentRef, {
-    message,
-    updatedAt: serverTimestamp(),
-  }).catch(() => {});
   void set(editorRef, {
     user,
     message,

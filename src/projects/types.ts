@@ -43,7 +43,6 @@ export type ProjectNoteDraft = {
 };
 
 export type ProjectSharedNoteDraft = {
-  message: string;
   editors: ProjectNoteDraft[];
   updatedAt?: number;
 };

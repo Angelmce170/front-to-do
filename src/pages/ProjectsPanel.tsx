@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
@@ -14,7 +14,6 @@ import {
   watchRealtimeProjectPresence,
 } from "../projects/realtimePresence";
 import {
-  clearRealtimeSharedTaskNoteDraft,
   clearRealtimeSharedTaskNoteEditor,
   clearRealtimeTaskNoteDraft,
   publishRealtimeSharedTaskNoteDraft,
@@ -375,34 +374,6 @@ export default function ProjectsPanel({ currentUser }: Props) {
         {after}
       </p>
     );
-  }
-
-  function renderSharedLiveDraft(draft: ProjectSharedNoteDraft) {
-    const cursors = draft.editors
-      .map((editor) => ({
-        ...editor,
-        cursorIndex: Math.min(Math.max(editor.cursorIndex, 0), draft.message.length),
-      }))
-      .sort((a, b) => a.cursorIndex - b.cursorIndex);
-    const nodes: ReactNode[] = [];
-    let lastIndex = 0;
-
-    cursors.forEach((editor, index) => {
-      nodes.push(draft.message.slice(lastIndex, editor.cursorIndex));
-      nodes.push(
-        <span
-          key={`${editor.user.id}-${index}`}
-          className="live-note-caret"
-          style={{ "--note-color": editor.user.avatarColor || "#2a8b7b" } as CSSProperties}
-        >
-          <b>{editor.user.name}</b>
-        </span>
-      );
-      lastIndex = editor.cursorIndex;
-    });
-    nodes.push(draft.message.slice(lastIndex) || "\u200b");
-
-    return <p className="live-note-text shared-live-note-text">{nodes}</p>;
   }
 
   function selectProject(projectId: string) {
@@ -931,7 +902,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     if (mode === "shared") {
       clearRealtimeTaskNoteDraft(selectedProject._id, task._id, currentUser.id);
-      const existingMessage = realtimeSharedNoteDrafts[task._id]?.message || noteDrafts[task._id] || "";
+      const existingMessage = noteDrafts[task._id] || "";
       if (existingMessage) {
         publishRealtimeSharedTaskNoteDraft({
           projectId: selectedProject._id,
@@ -947,7 +918,13 @@ export default function ProjectsPanel({ currentUser }: Props) {
   }
 
   function updateSharedTaskNoteDraft(task: ProjectTask, message: string, cursorIndex: number) {
+    setNoteDrafts((current) => ({ ...current, [task._id]: message }));
     if (!selectedProject || selectedProject.myStatus !== "active" || !currentUser) return;
+
+    if (!message.trim()) {
+      clearRealtimeSharedTaskNoteEditor(selectedProject._id, task._id, currentUser.id);
+      return;
+    }
 
     publishRealtimeSharedTaskNoteDraft({
       projectId: selectedProject._id,
@@ -963,14 +940,15 @@ export default function ProjectsPanel({ currentUser }: Props) {
     if (!selectedProject || !currentUser?.id) return;
 
     const mode = noteModes[task._id] || "individual";
-    const rawMessage = mode === "shared" ? realtimeSharedNoteDrafts[task._id]?.message || "" : noteDrafts[task._id] || "";
+    const rawMessage = noteDrafts[task._id] || "";
     const message = rawMessage.trim();
     if (!message) return;
 
     const { data } = await api.post(`/projects/${selectedProject._id}/tasks/${task._id}/notes`, { message, mode });
     applyProject(projectFromResponse(data.project));
     if (mode === "shared") {
-      clearRealtimeSharedTaskNoteDraft(selectedProject._id, task._id);
+      setNoteDrafts((current) => ({ ...current, [task._id]: "" }));
+      clearRealtimeSharedTaskNoteEditor(selectedProject._id, task._id, currentUser.id);
     } else {
       setNoteDrafts((current) => ({ ...current, [task._id]: "" }));
       clearRealtimeTaskNoteDraft(selectedProject._id, task._id, currentUser.id);
@@ -1355,7 +1333,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                       const taskNotePresence = notePresenceByTask[task._id] || [];
                       const liveNoteDrafts = realtimeNoteDrafts[task._id] || [];
                       const noteMode = noteModes[task._id] || "individual";
-                      const sharedNoteDraft = realtimeSharedNoteDrafts[task._id] || { message: "", editors: [] };
+                      const sharedNoteDraft = realtimeSharedNoteDrafts[task._id] || { editors: [] };
                       return (
                         <article key={task._id} className="project-card project-task-item">
                           <div className="task-row-head">
@@ -1409,7 +1387,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                 </button>
                               </div>
 
-                              {noteMode === "individual" && sharedNoteDraft.message.trim() && (
+                              {noteMode === "individual" && sharedNoteDraft.editors.length > 0 && (
                                 <div className="shared-note-callout">
                                   <span>Hay una nota compartida activa.</span>
                                   <button type="button" onClick={() => setTaskNoteMode(task, "shared")}>
@@ -1419,7 +1397,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                               )}
 
                               <div className="task-notes-list">
-                                {noteMode === "shared" && (sharedNoteDraft.message.trim() || sharedNoteDraft.editors.length > 0) && (
+                                {noteMode === "shared" && sharedNoteDraft.editors.length > 0 && (
                                   <article className="task-note-item live-note-item shared-note-item">
                                     <span className="participant-avatar shared-note-avatar" aria-hidden="true">
                                       +
@@ -1428,12 +1406,20 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                       <div className="task-note-meta">
                                         <strong>Nota compartida</strong>
                                         <small>
-                                          {sharedNoteDraft.editors.length
-                                            ? `${sharedNoteDraft.editors.map((editor) => editor.user.name).join(", ")} editando`
-                                            : "lista para editar"}
+                                          {`${sharedNoteDraft.editors.map((editor) => editor.user.name).join(", ")} editando`}
                                         </small>
                                       </div>
-                                      {renderSharedLiveDraft(sharedNoteDraft)}
+                                      <div className="shared-live-note-grid">
+                                        {sharedNoteDraft.editors.map((draft) => (
+                                          <div key={draft.user.id} className="shared-live-note-block">
+                                            <div className="task-note-meta">
+                                              <strong>{draft.user.name}</strong>
+                                              <small>su aporte</small>
+                                            </div>
+                                            {renderLiveDraft(draft)}
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   </article>
                                 )}
@@ -1508,7 +1494,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                 <form className="task-note-form" onSubmit={(event) => void addTaskNote(event, task)}>
                                   {noteMode === "shared" ? (
                                     <textarea
-                                      value={sharedNoteDraft.message}
+                                      value={noteDrafts[task._id] || ""}
                                       onChange={(event) => {
                                         updateSharedTaskNoteDraft(task, event.currentTarget.value, event.currentTarget.selectionStart);
                                       }}
