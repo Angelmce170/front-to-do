@@ -308,6 +308,7 @@ export default function ProjectDocumentEditor({ project, currentUser, editors, o
   const [cursorBubbles, setCursorBubbles] = useState<CursorBubble[]>([]);
   const [realtimeActive, setRealtimeActive] = useState(false);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const wordInputRef = useRef<HTMLInputElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const projectIdRef = useRef(project._id);
   const latestHtmlRef = useRef(documentInfo.content);
@@ -433,6 +434,40 @@ export default function ProjectDocumentEditor({ project, currentUser, editors, o
     scheduleRealtimeSave(nextContent);
     scheduleBackendSave(nextContent);
     publishCursor(0);
+  }
+
+  function commitImportedContent(nextContent: string) {
+    const safeContent = sanitizeEditorHtml(nextContent);
+    latestHtmlRef.current = safeContent;
+    dirtyRef.current = true;
+    setContentHtml(safeContent);
+    setDirty(true);
+    setMessage("Archivo importado. Guardando cambios...");
+    if (editorRef.current) editorRef.current.innerHTML = safeContent;
+    onActivity("documento", "importando un archivo de Word");
+    scheduleRealtimeSave(safeContent);
+    scheduleBackendSave(safeContent);
+  }
+
+  async function importWordFile(file?: File) {
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      setMessage("Por ahora importa archivos .docx de Word.");
+      return;
+    }
+
+    try {
+      setMessage("Importando Word...");
+      const arrayBuffer = await file.arrayBuffer();
+      const mammoth = await import("mammoth");
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      commitImportedContent(result.value);
+    } catch {
+      setMessage("No se pudo importar el archivo de Word.");
+    } finally {
+      if (wordInputRef.current) wordInputRef.current.value = "";
+    }
   }
 
   function format(command: string, value?: string) {
@@ -646,6 +681,16 @@ export default function ProjectDocumentEditor({ project, currentUser, editors, o
           </button>
         </div>
         <div className="document-toolbar-group document-export-actions">
+          <input
+            ref={wordInputRef}
+            className="document-file-input"
+            type="file"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(event) => void importWordFile(event.target.files?.[0])}
+          />
+          <button type="button" onClick={() => wordInputRef.current?.click()} title="Importar archivo de Word">
+            Importar Word
+          </button>
           <button type="button" onClick={() => void exportDocx()}>
             DOCX
           </button>

@@ -1606,6 +1606,9 @@ button { letter-spacing: 0; }
   background: #172033;
   color: #ffffff;
 }
+.document-file-input {
+  display: none;
+}
 .document-save-state {
   border-radius: 999px;
   padding: 6px 10px;
