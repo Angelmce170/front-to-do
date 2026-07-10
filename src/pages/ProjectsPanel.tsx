@@ -831,7 +831,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                             <option value="">Selecciona usuario</option>
                             {activeMembers.map((member) => (
                               <option key={member.user?.id} value={member.user?.id}>
-                                {member.user?.name}
+                                {member.user?.name} - {member.user?.email}
                               </option>
                             ))}
                           </select>
@@ -851,7 +851,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
                   <div className="project-task-list">
                     {selectedProject.tasks.map((task) => {
-                      const canChange = selectedProject.isLeader || task.assignedTo?.id === currentUser?.id;
+                      const canChangeStatus = task.assignedTo?.id === currentUser?.id;
                       return (
                         <article key={task._id} className="project-card project-task-item">
                           <div className="task-row-head">
@@ -864,10 +864,13 @@ export default function ProjectsPanel({ currentUser }: Props) {
                             </span>
                           </div>
                           <div className="task-meta-line">
-                            <span>Asignado a {task.assignedTo?.name || "Sin asignar"}</span>
+                            <span>
+                              Asignado a {task.assignedTo?.name || "Sin asignar"}
+                              {task.assignedTo?.email ? ` - ${task.assignedTo.email}` : ""}
+                            </span>
                             <span>{formatDate(task.dueAt)}</span>
                           </div>
-                          {canChange && (
+                          {canChangeStatus && (
                             <div className="task-status-actions">
                               {(["Pendiente", "En Progreso", "Completada"] as const).map((status) => (
                                 <button
