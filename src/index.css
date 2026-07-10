@@ -1065,6 +1065,7 @@ button { letter-spacing: 0; }
   gap: 6px;
   max-width: 170px;
   transform: translate(8px, 8px);
+  transition: left .18s ease-out, top .18s ease-out;
   filter: drop-shadow(0 10px 20px rgba(23, 32, 51, .18));
 }
 .project-remote-cursor i {

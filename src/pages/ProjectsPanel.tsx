@@ -91,6 +91,22 @@ const projectViewLabels = {
 
 type ProjectView = keyof typeof projectViewLabels;
 
+function clearProjectPresence(projectId: string) {
+  const token = localStorage.getItem("token");
+  const baseUrl = String(api.defaults.baseURL || "").replace(/\/$/, "");
+  if (!projectId || !token || !baseUrl) return;
+
+  fetch(`${baseUrl}/projects/${projectId}/activity`, {
+    method: "POST",
+    keepalive: true,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ area: "presence:clear", action: "salió" }),
+  }).catch(() => {});
+}
+
 export default function ProjectsPanel({ currentUser }: Props) {
   const [isProjectMobile, setIsProjectMobile] = useState(() => window.matchMedia("(max-width: 780px)").matches);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -118,6 +134,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const activityRef = useRef(0);
   const cursorPresenceRef = useRef(0);
   const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const selectedProjectIdRef = useRef("");
+  const selectedProjectStatusRef = useRef("");
+  const projectViewRef = useRef<ProjectView>("overview");
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const typingRef = useRef<Record<string, number>>({});
 
@@ -362,7 +381,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     lastCursorRef.current = cursor;
 
     const now = Date.now();
-    if (now - cursorPresenceRef.current < 450) return;
+    if (now - cursorPresenceRef.current < 280) return;
 
     cursorPresenceRef.current = now;
     publishViewPresence(cursor);
@@ -428,6 +447,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
   }, []);
 
   useEffect(() => {
+    selectedProjectIdRef.current = selectedProjectId;
+    selectedProjectStatusRef.current = selectedProjectStatus;
+    projectViewRef.current = projectView;
+  }, [projectView, selectedProjectId, selectedProjectStatus]);
+
+  useEffect(() => {
     if (!selectedId) return;
 
     const timer = window.setInterval(() => {
@@ -443,10 +468,51 @@ export default function ProjectsPanel({ currentUser }: Props) {
         );
         setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
       })();
-    }, chatOpen ? 2500 : 1800);
+    }, 1200);
 
     return () => window.clearInterval(timer);
-  }, [chatOpen, selectedId]);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+
+    return () => clearProjectPresence(selectedProjectId);
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    const clearCurrentPresence = () => clearProjectPresence(selectedProjectIdRef.current);
+    const publishCurrentPresence = () => {
+      const projectId = selectedProjectIdRef.current;
+      if (!projectId || selectedProjectStatusRef.current !== "active") return;
+
+      const view = projectViewRef.current;
+      const cursor = lastCursorRef.current;
+      api.post(`/projects/${projectId}/activity`, {
+        area: `view:${view}`,
+        action: `viendo ${projectViewLabels[view]}`,
+        cursorX: cursor?.x,
+        cursorY: cursor?.y,
+      }).catch(() => {});
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        clearCurrentPresence();
+      } else {
+        publishCurrentPresence();
+      }
+    };
+
+    window.addEventListener("pagehide", clearCurrentPresence);
+    window.addEventListener("beforeunload", clearCurrentPresence);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", clearCurrentPresence);
+      window.removeEventListener("beforeunload", clearCurrentPresence);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearCurrentPresence();
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId || selectedProjectStatus !== "active") return;
@@ -463,7 +529,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     };
 
     publish();
-    const timer = window.setInterval(publish, 7000);
+    const timer = window.setInterval(publish, 4000);
 
     return () => window.clearInterval(timer);
   }, [projectView, selectedProjectId, selectedProjectStatus]);
