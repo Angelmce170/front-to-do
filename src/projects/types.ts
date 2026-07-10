@@ -34,6 +34,13 @@ export type ProjectNote = {
   createdAt: string;
 };
 
+export type ProjectNoteDraft = {
+  user: UserMini;
+  message: string;
+  cursorIndex: number;
+  updatedAt?: number;
+};
+
 export type ProjectTask = {
   _id: string;
   title: string;

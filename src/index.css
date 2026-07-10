@@ -1621,6 +1621,49 @@ button { letter-spacing: 0; }
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+.live-note-item {
+  border-color: #cbe8e3;
+  background: #f5fcfa;
+}
+.live-note-text {
+  position: relative;
+  min-height: 32px;
+  margin-top: 8px !important;
+  padding: 10px 12px;
+  border: 1px solid #d7ebe7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033 !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+  white-space: pre-wrap;
+}
+.live-note-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1.35em;
+  margin-inline: 1px;
+  vertical-align: -0.2em;
+  border-left: 2px solid var(--note-color, #2a8b7b);
+}
+.live-note-caret b {
+  position: absolute;
+  left: -6px;
+  bottom: calc(100% + 3px);
+  max-width: 140px;
+  overflow: hidden;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--note-color, #2a8b7b);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(23, 32, 51, .18);
+}
 .note-delete-button {
   border: 0;
   border-radius: 999px;

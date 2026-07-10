@@ -13,7 +13,12 @@ import {
   realtimePresenceReady,
   watchRealtimeProjectPresence,
 } from "../projects/realtimePresence";
-import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectPresence, ProjectTask, UserMini } from "../projects/types";
+import {
+  clearRealtimeTaskNoteDraft,
+  publishRealtimeTaskNoteDraft,
+  watchRealtimeProjectNoteDrafts,
+} from "../projects/realtimeNotes";
+import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectNoteDraft, ProjectPresence, ProjectTask, UserMini } from "../projects/types";
 
 type Props = {
   currentUser: UserMini | null;
@@ -129,6 +134,13 @@ export default function ProjectsPanel({ currentUser }: Props) {
     projectId: "",
     items: [],
   });
+  const [realtimeNoteDraftsState, setRealtimeNoteDraftsState] = useState<{
+    projectId: string;
+    items: Record<string, ProjectNoteDraft[]>;
+  }>({
+    projectId: "",
+    items: {},
+  });
   const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
@@ -149,6 +161,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const cursorPresenceRef = useRef(0);
   const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
   const noteTypingRef = useRef<Record<string, number>>({});
+  const noteDraftsRef = useRef<Record<string, string>>({});
   const selectedProjectIdRef = useRef("");
   const selectedProjectStatusRef = useRef("");
   const currentUserRef = useRef<UserMini | null>(null);
@@ -262,6 +275,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     return typing;
   }, [visiblePresence]);
+  const realtimeNoteDrafts =
+    realtimeNoteDraftsState.projectId === selectedProjectId ? realtimeNoteDraftsState.items : {};
   const activityItems = useMemo(
     () => [...(selectedProject?.activity || [])].reverse(),
     [selectedProject]
@@ -313,6 +328,25 @@ export default function ProjectsPanel({ currentUser }: Props) {
         ? [...new Set([...current.assigneeIds, userId])]
         : current.assigneeIds.filter((id) => id !== userId),
     }));
+  }
+
+  function renderLiveDraft(draft: ProjectNoteDraft) {
+    const cursorIndex = Math.min(Math.max(draft.cursorIndex, 0), draft.message.length);
+    const before = draft.message.slice(0, cursorIndex);
+    const after = draft.message.slice(cursorIndex);
+
+    return (
+      <p className="live-note-text">
+        {before || "\u200b"}
+        <span
+          className="live-note-caret"
+          style={{ "--note-color": draft.user.avatarColor || "#2a8b7b" } as CSSProperties}
+        >
+          <b>{draft.user.name}</b>
+        </span>
+        {after}
+      </p>
+    );
   }
 
   function selectProject(projectId: string) {
@@ -517,10 +551,22 @@ export default function ProjectsPanel({ currentUser }: Props) {
   }, [currentUser, projectView, selectedProjectId, selectedProjectStatus]);
 
   useEffect(() => {
+    noteDraftsRef.current = noteDrafts;
+  }, [noteDrafts]);
+
+  useEffect(() => {
     if (!useRealtimePresence || !selectedProjectId || selectedProjectStatus !== "active" || !currentUser?.id) return;
 
     return watchRealtimeProjectPresence(selectedProjectId, currentUser.id, (items) => {
       setRealtimePresenceState({ projectId: selectedProjectId, items });
+    });
+  }, [currentUser?.id, selectedProjectId, selectedProjectStatus, useRealtimePresence]);
+
+  useEffect(() => {
+    if (!useRealtimePresence || !selectedProjectId || selectedProjectStatus !== "active" || !currentUser?.id) return;
+
+    return watchRealtimeProjectNoteDrafts(selectedProjectId, currentUser.id, (items) => {
+      setRealtimeNoteDraftsState({ projectId: selectedProjectId, items });
     });
   }, [currentUser?.id, selectedProjectId, selectedProjectStatus, useRealtimePresence]);
 
@@ -551,6 +597,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
     return () => {
       clearBackendProjectPresence(selectedProjectId);
       if (currentUser?.id) clearRealtimeProjectPresence(selectedProjectId, currentUser.id);
+      if (currentUser?.id) {
+        Object.keys(noteDraftsRef.current).forEach((taskId) => {
+          clearRealtimeTaskNoteDraft(selectedProjectId, taskId, currentUser.id);
+        });
+      }
     };
   }, [currentUser?.id, selectedProjectId]);
 
@@ -776,9 +827,29 @@ export default function ProjectsPanel({ currentUser }: Props) {
     }
   }
 
+  function updateTaskNoteDraft(task: ProjectTask, message: string, cursorIndex: number) {
+    setNoteDrafts((current) => ({ ...current, [task._id]: message }));
+    if (!selectedProject || selectedProject.myStatus !== "active" || !currentUser) return;
+
+    if (!message.trim()) {
+      clearRealtimeTaskNoteDraft(selectedProject._id, task._id, currentUser.id);
+      return;
+    }
+
+    const sentRealtime = publishRealtimeTaskNoteDraft({
+      projectId: selectedProject._id,
+      taskId: task._id,
+      user: currentUser,
+      message,
+      cursorIndex,
+    });
+
+    if (!sentRealtime) pingTaskNoteTyping(task);
+  }
+
   async function addTaskNote(event: ProjectFormEvent, task: ProjectTask) {
     event.preventDefault();
-    if (!selectedProject) return;
+    if (!selectedProject || !currentUser?.id) return;
 
     const message = noteDrafts[task._id]?.trim();
     if (!message) return;
@@ -786,6 +857,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const { data } = await api.post(`/projects/${selectedProject._id}/tasks/${task._id}/notes`, { message });
     applyProject(projectFromResponse(data.project));
     setNoteDrafts((current) => ({ ...current, [task._id]: "" }));
+    clearRealtimeTaskNoteDraft(selectedProject._id, task._id, currentUser.id);
     publishViewPresence(lastCursorRef.current);
   }
 
@@ -1164,6 +1236,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                       const canChangeStatus = assignees.some((user) => user?.id === currentUser?.id);
                       const canUseNotes = Boolean(task.canWriteNotes || selectedProject.isLeader || canChangeStatus);
                       const taskNotePresence = notePresenceByTask[task._id] || [];
+                      const liveNoteDrafts = realtimeNoteDrafts[task._id] || [];
                       return (
                         <article key={task._id} className="project-card project-task-item">
                           <div className="task-row-head">
@@ -1201,6 +1274,25 @@ export default function ProjectsPanel({ currentUser }: Props) {
                               </div>
 
                               <div className="task-notes-list">
+                                {liveNoteDrafts.map((draft) => (
+                                  <article key={`draft-${draft.user.id}`} className="task-note-item live-note-item">
+                                    <span
+                                      className="participant-avatar"
+                                      style={{ backgroundColor: draft.user.avatarColor || "#2a8b7b" }}
+                                      aria-hidden="true"
+                                    >
+                                      {draft.user.name?.trim().charAt(0).toUpperCase() || "U"}
+                                    </span>
+                                    <div>
+                                      <div className="task-note-meta">
+                                        <strong>{draft.user.name}</strong>
+                                        <small>escribiendo ahora</small>
+                                      </div>
+                                      {renderLiveDraft(draft)}
+                                    </div>
+                                  </article>
+                                ))}
+
                                 {(task.notes || []).map((note) => {
                                   const canDeleteNote = selectedProject.isLeader || note.author?.id === currentUser?.id;
 
@@ -1235,7 +1327,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                 {!task.notes?.length && <p className="task-note-empty">Sin notas todavía.</p>}
                               </div>
 
-                              {taskNotePresence.length > 0 && (
+                              {taskNotePresence.length > 0 && !liveNoteDrafts.length && (
                                 <div className="note-typing-strip">
                                   {taskNotePresence.map((user) => (
                                     <span key={user.id} style={{ "--note-color": user.avatarColor || "#2a8b7b" } as CSSProperties}>
@@ -1250,8 +1342,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
                                   <textarea
                                     value={noteDrafts[task._id] || ""}
                                     onChange={(event) => {
-                                      setNoteDrafts((current) => ({ ...current, [task._id]: event.target.value }));
-                                      pingTaskNoteTyping(task);
+                                      updateTaskNoteDraft(task, event.currentTarget.value, event.currentTarget.selectionStart);
+                                    }}
+                                    onSelect={(event) => {
+                                      const value = event.currentTarget.value;
+                                      if (value.trim()) updateTaskNoteDraft(task, value, event.currentTarget.selectionStart);
                                     }}
                                     onFocus={() => pingTaskNoteTyping(task)}
                                     placeholder="Escribe una nota para esta tarea"
