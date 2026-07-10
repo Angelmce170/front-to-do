@@ -31,7 +31,6 @@ export type ProjectNote = {
   _id: string;
   author: UserMini | null;
   message: string;
-  mode?: "individual" | "shared";
   createdAt: string;
 };
 
@@ -39,11 +38,6 @@ export type ProjectNoteDraft = {
   user: UserMini;
   message: string;
   cursorIndex: number;
-  updatedAt?: number;
-};
-
-export type ProjectSharedNoteDraft = {
-  editors: ProjectNoteDraft[];
   updatedAt?: number;
 };
 
