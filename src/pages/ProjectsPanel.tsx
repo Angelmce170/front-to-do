@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { API_URL, api } from "../api";
 import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
@@ -7,7 +7,7 @@ import ProjectCreateForm from "../projects/ProjectCreateForm";
 import ProjectDocumentEditor from "../projects/ProjectDocumentEditor";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
-import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, ProjectView, UserMini } from "../projects/types";
+import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectPresence, ProjectTask, ProjectView, UserMini } from "../projects/types";
 
 type Props = {
   currentUser: UserMini | null;
@@ -46,6 +46,16 @@ function alertChatKey(alert: ProjectAlert) {
 
 function alertSender(alert: ProjectAlert) {
   return alertTextData(alert, "authorName") || "Alguien";
+}
+
+function presenceAreaLabel(presence: ProjectPresence) {
+  if (presence.area === "documento") return "Documento";
+  if (presence.area === "chat:group") return "Chat grupal";
+  if (presence.area.startsWith("chat:direct:")) return "Chat privado";
+  if (presence.area === "tareas") return "Tareas";
+  if (presence.area === "comentarios") return "Comentarios";
+  if (presence.area === "miembros") return "Participantes";
+  return "Proyecto";
 }
 
 function dateParts(value?: string) {
@@ -108,6 +118,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const activityRef = useRef(0);
+  const projectStreamRef = useRef(false);
   const typingRef = useRef<Record<string, number>>({});
 
   const selectedProject = projects.find((project) => project._id === selectedId) || null;
@@ -194,8 +205,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const documentEditors = (selectedProject?.presence || []).filter(
     (presence) => presence.area === "documento"
   );
-  const visiblePresence = (selectedProject?.presence || []).filter(
-    (presence) => !presence.area.startsWith("chat:") && presence.area !== "documento"
+  const livePresence = (selectedProject?.presence || []).filter(
+    (presence) => presence.user
   );
   const activityItems = useMemo(
     () => [...(selectedProject?.activity || [])].reverse(),
@@ -389,6 +400,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     const timer = window.setInterval(() => {
       void (async () => {
+        if (projectStreamRef.current) {
+          const { data: alertData } = await api.get("/projects/alerts");
+          setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
+          return;
+        }
+
         const [{ data: projectData }, { data: alertData }] = await Promise.all([
           api.get(`/projects/${selectedId}`),
           api.get("/projects/alerts"),
@@ -400,10 +417,50 @@ export default function ProjectsPanel({ currentUser }: Props) {
         );
         setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
       })();
-    }, chatOpen || projectView === "document" ? 2500 : 5000);
+    }, chatOpen || projectView === "document" ? 1000 : 5000);
 
     return () => window.clearInterval(timer);
   }, [chatOpen, projectView, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || typeof window.EventSource === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const stream = new EventSource(
+      `${API_URL}/projects/${selectedId}/stream?token=${encodeURIComponent(token)}`
+    );
+
+    stream.onopen = () => {
+      projectStreamRef.current = true;
+    };
+
+    stream.addEventListener("project", (event) => {
+      projectStreamRef.current = true;
+      let payload: { project?: Project };
+      try {
+        payload = JSON.parse((event as MessageEvent).data) as { project?: Project };
+      } catch {
+        return;
+      }
+
+      if (!payload.project) return;
+      const nextProject = projectFromResponse(payload.project);
+      setProjects((current) =>
+        current.map((project) => (project._id === nextProject._id ? nextProject : project))
+      );
+    });
+
+    stream.onerror = () => {
+      projectStreamRef.current = false;
+    };
+
+    return () => {
+      projectStreamRef.current = false;
+      stream.close();
+    };
+  }, [selectedId]);
 
   useEffect(() => {
     if (!activeUnreadAlertIds.length) return;
@@ -668,11 +725,17 @@ export default function ProjectsPanel({ currentUser }: Props) {
                 </div>
               </div>
 
-              {visiblePresence.length > 0 && (
-                <div className="presence-strip">
-                  {visiblePresence.map((presence) => (
-                    <span key={`${presence.user?.id}-${presence.area}`}>
-                      {presence.user?.name} está {presence.action}
+              {livePresence.length > 0 && (
+                <div className="live-edit-bubbles" aria-live="polite">
+                  {livePresence.slice(0, 4).map((presence) => (
+                    <span key={`${presence.user?.id}-${presence.area}`} className="live-edit-bubble">
+                      <b style={{ backgroundColor: presence.user?.avatarColor || "#2a8b7b" }}>
+                        {presence.user?.name?.trim().charAt(0).toUpperCase() || "U"}
+                      </b>
+                      <span>
+                        <strong>{presence.user?.name || "Usuario"}</strong>
+                        <small>{presence.action} en {presenceAreaLabel(presence)}</small>
+                      </span>
                     </span>
                   ))}
                 </div>

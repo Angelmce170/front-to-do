@@ -1309,6 +1309,60 @@ button { letter-spacing: 0; }
   font-size: 12px;
   font-weight: 800;
 }
+.live-edit-bubbles {
+  position: sticky;
+  top: 10px;
+  z-index: 8;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  margin: -4px 0 2px;
+  pointer-events: none;
+}
+.live-edit-bubble {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(360px, 100%);
+  gap: 9px;
+  padding: 7px 11px 7px 7px;
+  border: 1px solid rgba(42, 139, 123, .24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 14px 36px rgba(23, 32, 51, .16);
+}
+.live-edit-bubble > b {
+  display: inline-grid;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+.live-edit-bubble > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.live-edit-bubble strong {
+  overflow: hidden;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-edit-bubble small {
+  overflow: hidden;
+  color: #637083;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .share-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1552,11 +1606,59 @@ button { letter-spacing: 0; }
   font-weight: 900;
 }
 .document-editor-field textarea {
+  width: 100%;
   min-height: 360px;
   resize: vertical;
   line-height: 1.55;
   font-family: inherit;
   white-space: pre-wrap;
+}
+.document-editor-surface {
+  position: relative;
+}
+.document-floating-presence {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  max-width: min(320px, calc(100% - 20px));
+  pointer-events: none;
+}
+.document-floating-presence span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  max-width: 100%;
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(42, 139, 123, .24);
+  border-radius: 999px;
+  background: rgba(242, 251, 249, .98);
+  color: #1f6c60;
+  box-shadow: 0 12px 28px rgba(23, 32, 51, .15);
+}
+.document-floating-presence b {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+.document-floating-presence small {
+  overflow: hidden;
+  color: #1f6c60;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .document-editor-foot {
   display: flex;
@@ -1946,6 +2048,13 @@ button { letter-spacing: 0; }
   .project-tabs button {
     flex: 0 0 auto;
   }
+  .live-edit-bubbles {
+    top: 8px;
+    justify-items: stretch;
+  }
+  .live-edit-bubble {
+    max-width: 100%;
+  }
   .assignment-row { grid-template-columns: 1fr; }
 }
 
@@ -2046,6 +2155,15 @@ button { letter-spacing: 0; }
   }
   .document-editor-field textarea {
     min-height: 300px;
+  }
+  .document-floating-presence {
+    position: static;
+    justify-items: stretch;
+    max-width: 100%;
+    margin-bottom: 8px;
+  }
+  .document-floating-presence span {
+    width: 100%;
   }
   .activity-filters {
     grid-template-columns: 1fr;

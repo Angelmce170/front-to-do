@@ -144,30 +144,31 @@ export default function ProjectDocumentEditor({ project, currentUser, editors, o
         <span className={`document-save-state ${saveStateClass}`}>{canEdit ? saveState : "Solo lectura"}</span>
       </div>
 
-      {activeEditors.length > 0 && (
-        <div className="document-presence">
-          {activeEditors.map((editor) => (
-            <span key={editor.id}>
-              <b style={{ backgroundColor: editor.avatarColor || "#2a8b7b" }}>
-                {editor.name.trim().charAt(0).toUpperCase() || "U"}
-              </b>
-              {editor.name} está editando
-            </span>
-          ))}
-        </div>
-      )}
-
       <label className="document-editor-field">
         <span>Contenido</span>
-        <textarea
-          value={draft}
-          disabled={!canEdit}
-          maxLength={maxDocumentLength}
-          onChange={(event) => handleChange(event.target.value)}
-          onFocus={() => onActivity("documento", "editando el documento")}
-          placeholder="Escribe aquí el documento del proyecto"
-          rows={16}
-        />
+        <div className="document-editor-surface">
+          {activeEditors.length > 0 && (
+            <div className="document-floating-presence" aria-live="polite">
+              {activeEditors.slice(0, 3).map((editor) => (
+                <span key={editor.id}>
+                  <b style={{ backgroundColor: editor.avatarColor || "#2a8b7b" }}>
+                    {editor.name.trim().charAt(0).toUpperCase() || "U"}
+                  </b>
+                  <small>{editor.name} está editando aquí</small>
+                </span>
+              ))}
+            </div>
+          )}
+          <textarea
+            value={draft}
+            disabled={!canEdit}
+            maxLength={maxDocumentLength}
+            onChange={(event) => handleChange(event.target.value)}
+            onFocus={() => onActivity("documento", "editando el documento")}
+            placeholder="Escribe aquí el documento del proyecto"
+            rows={16}
+          />
+        </div>
       </label>
 
       <div className="document-editor-foot">
