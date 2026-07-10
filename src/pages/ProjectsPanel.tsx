@@ -203,6 +203,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
             (alert) =>
               !alert.read &&
               alert.type === "message" &&
+              Boolean(alertChatKey(alert)) &&
               alertProjectId(alert) === selectedProject._id
           )
         : [],
