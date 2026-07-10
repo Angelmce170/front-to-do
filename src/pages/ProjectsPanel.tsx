@@ -240,7 +240,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
   );
   const realtimePresence = realtimePresenceState.projectId === selectedProjectId ? realtimePresenceState.items : [];
   const visiblePresence = useRealtimePresence ? realtimePresence : backendVisiblePresence;
-  const remoteCursors = visiblePresence.filter(
+  const currentViewArea = `view:${projectView}`;
+  const currentViewPresence = visiblePresence.filter((presence) => presence.area === currentViewArea);
+  const remoteCursors = currentViewPresence.filter(
     (presence) => typeof presence.cursorX === "number" && typeof presence.cursorY === "number"
   );
   const activityItems = useMemo(
@@ -895,9 +897,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
                 </div>
               </div>
 
-              {visiblePresence.length > 0 && (
+              {currentViewPresence.length > 0 && (
                 <div className="presence-strip">
-                  {visiblePresence.map((presence) => (
+                  {currentViewPresence.map((presence) => (
                     <span key={`${presence.user?.id}-${presence.area}`}>
                       {presence.user?.name} está {presence.action}
                     </span>
