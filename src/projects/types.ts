@@ -60,6 +60,13 @@ export type ProjectActivity = {
   createdAt: string;
 };
 
+export type ProjectDocument = {
+  content: string;
+  updatedBy: UserMini | null;
+  updatedAt?: string | null;
+  version: number;
+};
+
 export type Project = {
   _id: string;
   title: string;
@@ -73,6 +80,7 @@ export type Project = {
   attachment?: ProjectAttachment;
   tasks: ProjectTask[];
   messages: ProjectMessage[];
+  document: ProjectDocument;
   presence: ProjectPresence[];
   activity: ProjectActivity[];
   myStatus: "active" | "invited" | "";
@@ -105,6 +113,6 @@ export type ProjectTaskForm = {
   dueAt: string;
 };
 
-export type ProjectView = "overview" | "tasks" | "schedule";
+export type ProjectView = "overview" | "tasks" | "schedule" | "document";
 export type ChatScope = "group" | "direct";
 export type ProjectFormEvent = FormEvent<HTMLFormElement>;

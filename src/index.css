@@ -1385,6 +1385,7 @@ button { letter-spacing: 0; }
 }
 .activity-card h4,
 .task-assignment h4,
+.document-editor-card h4,
 .schedule-card h4 {
   margin: 0 0 12px;
   color: #172033;
@@ -1480,6 +1481,94 @@ button { letter-spacing: 0; }
   gap: 8px;
 }
 .schedule-card { display: grid; gap: 10px; }
+.document-editor-card {
+  display: grid;
+  gap: 14px;
+}
+.document-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.document-editor-head h4 { margin-bottom: 4px; }
+.document-editor-head span {
+  color: #718096;
+  font-size: 12px;
+  font-weight: 800;
+}
+.document-save-state {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #e4f2ef;
+  color: #1f6c60;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.document-save-state.pending {
+  background: #fff3d9;
+  color: #8b5d12;
+}
+.document-save-state.saving {
+  background: #e4f1fb;
+  color: #1f5f87;
+}
+.document-presence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.document-presence span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid #cfe6e2;
+  border-radius: 999px;
+  background: #f2fbf9;
+  color: #1f6c60;
+  font-size: 12px;
+  font-weight: 850;
+}
+.document-presence b {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 11px;
+  font-style: normal;
+}
+.document-editor-field {
+  display: grid;
+  gap: 8px;
+}
+.document-editor-field > span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+.document-editor-field textarea {
+  min-height: 360px;
+  resize: vertical;
+  line-height: 1.55;
+  font-family: inherit;
+  white-space: pre-wrap;
+}
+.document-editor-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.document-editor-foot > span {
+  color: #718096;
+  font-size: 12px;
+  font-weight: 800;
+}
 .schedule-item {
   position: relative;
   display: grid;
@@ -1850,6 +1939,13 @@ button { letter-spacing: 0; }
     border-bottom: 1px solid #e7ecf2;
   }
   .project-meta-grid > div:last-child { border-bottom: 0; }
+  .project-tabs {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .project-tabs button {
+    flex: 0 0 auto;
+  }
   .assignment-row { grid-template-columns: 1fr; }
 }
 
@@ -1932,6 +2028,7 @@ button { letter-spacing: 0; }
   .activity-card,
   .task-assignment,
   .project-task-item,
+  .document-editor-card,
   .schedule-card,
   .project-detail-head { padding: 16px; }
   .project-detail-head h3 { font-size: 22px; }
@@ -1941,6 +2038,14 @@ button { letter-spacing: 0; }
   }
   .activity-card-head {
     flex-direction: column;
+  }
+  .document-editor-head,
+  .document-editor-foot {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .document-editor-field textarea {
+    min-height: 300px;
   }
   .activity-filters {
     grid-template-columns: 1fr;

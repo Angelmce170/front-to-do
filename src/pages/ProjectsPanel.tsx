@@ -4,9 +4,10 @@ import ProjectAlerts from "../projects/ProjectAlerts";
 import ProjectAttachmentModal from "../projects/ProjectAttachmentModal";
 import ProjectChat from "../projects/ProjectChat";
 import ProjectCreateForm from "../projects/ProjectCreateForm";
+import ProjectDocumentEditor from "../projects/ProjectDocumentEditor";
 import ProjectInviteBox from "../projects/ProjectInviteBox";
 import { emptyProjectForm, emptyTaskForm, fileToAttachment, formatDate, fromDateInput, projectFromResponse } from "../projects/projectUtils";
-import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, UserMini } from "../projects/types";
+import type { ChatScope, Project, ProjectAlert, ProjectAttachment, ProjectFormEvent, ProjectTask, ProjectView, UserMini } from "../projects/types";
 
 type Props = {
   currentUser: UserMini | null;
@@ -90,7 +91,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [projectAttachment, setProjectAttachment] = useState<ProjectAttachment | null>(null);
   const [friends, setFriends] = useState<UserMini[]>([]);
   const [alerts, setAlerts] = useState<ProjectAlert[]>([]);
-  const [projectView, setProjectView] = useState<"overview" | "tasks" | "schedule">("overview");
+  const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
@@ -190,8 +191,11 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
     return typing;
   }, [currentUser, selectedProject]);
+  const documentEditors = (selectedProject?.presence || []).filter(
+    (presence) => presence.area === "documento"
+  );
   const visiblePresence = (selectedProject?.presence || []).filter(
-    (presence) => !presence.area.startsWith("chat:")
+    (presence) => !presence.area.startsWith("chat:") && presence.area !== "documento"
   );
   const activityItems = useMemo(
     () => [...(selectedProject?.activity || [])].reverse(),
@@ -396,10 +400,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
         );
         setAlerts(Array.isArray(alertData.items) ? alertData.items : []);
       })();
-    }, chatOpen ? 2500 : 5000);
+    }, chatOpen || projectView === "document" ? 2500 : 5000);
 
     return () => window.clearInterval(timer);
-  }, [chatOpen, selectedId]);
+  }, [chatOpen, projectView, selectedId]);
 
   useEffect(() => {
     if (!activeUnreadAlertIds.length) return;
@@ -694,14 +698,20 @@ export default function ProjectsPanel({ currentUser }: Props) {
               )}
 
               <div className="project-tabs">
-                {(["overview", "tasks", "schedule"] as const).map((tab) => (
+                {(["overview", "tasks", "schedule", "document"] as const).map((tab) => (
                   <button
                     key={tab}
                     className={projectView === tab ? "active" : ""}
                     type="button"
                     onClick={() => setProjectView(tab)}
                   >
-                    {tab === "overview" ? "Actividad" : tab === "tasks" ? "Tareas" : "Cronograma"}
+                    {tab === "overview"
+                      ? "Actividad"
+                      : tab === "tasks"
+                        ? "Tareas"
+                        : tab === "schedule"
+                          ? "Cronograma"
+                          : "Documento"}
                   </button>
                 ))}
               </div>
@@ -924,6 +934,16 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   ))}
                   {!sortedSchedule.length && <p>No hay fechas para ordenar.</p>}
                 </div>
+              )}
+
+              {projectView === "document" && (
+                <ProjectDocumentEditor
+                  project={selectedProject}
+                  currentUser={currentUser}
+                  editors={documentEditors}
+                  onActivity={pingActivity}
+                  onSaved={(project) => applyProject(project, false)}
+                />
               )}
             </>
           )}
