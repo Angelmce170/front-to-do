@@ -119,6 +119,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     [selectedProject]
   );
   const otherMembers = activeMembers.filter((member) => member.user?.id !== currentUser?.id);
+  const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends]);
   const joinLink = selectedProject
     ? `${window.location.origin}/dashboard?joinProject=${selectedProject.inviteCode}`
     : "";
@@ -478,6 +479,19 @@ export default function ProjectsPanel({ currentUser }: Props) {
     setNotice("Amigos invitados al proyecto.");
   }
 
+  async function addParticipantFriend(user: UserMini) {
+    if (!user.id || friendIds.has(user.id) || user.id === currentUser?.id) return;
+
+    const { data } = await api.post("/projects/friends", { userId: user.id });
+    const friend = data.friend as UserMini | undefined;
+    if (friend?.id) {
+      setFriends((current) => current.some((item) => item.id === friend.id) ? current : [...current, friend]);
+    } else {
+      await loadFriends();
+    }
+    setNotice(`${user.name} ahora está en tus amigos.`);
+  }
+
   async function createTask(event: ProjectFormEvent) {
     event.preventDefault();
     if (!selectedProject || !taskForm.title.trim()) return;
@@ -595,9 +609,48 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   <span>Líder</span>
                   <strong>{selectedProject.creator?.name || "Usuario"}</strong>
                 </div>
-                <div>
+                <div className="project-participants-cell">
                   <span>Participantes</span>
                   <strong>{selectedProject.members.length}/{selectedProject.participantLimit}</strong>
+                  <div className="project-participant-list">
+                    {selectedProject.members.map((member) => {
+                      const user = member.user;
+                      const isCurrentUser = user?.id === currentUser?.id;
+                      const isFriend = Boolean(user?.id && friendIds.has(user.id));
+                      const memberLabel =
+                        member.role === "leader"
+                          ? "Líder"
+                          : member.status === "invited"
+                            ? "Invitado"
+                            : "Miembro";
+
+                      return (
+                        <div key={user?.id || `${memberLabel}-${member.status}`} className="project-participant-row">
+                          <span
+                            className="participant-avatar"
+                            style={{ backgroundColor: user?.avatarColor || "#2a8b7b" }}
+                            aria-hidden="true"
+                          >
+                            {user?.name?.trim().charAt(0).toUpperCase() || "U"}
+                          </span>
+                          <div>
+                            <strong>{user?.name || "Usuario"}</strong>
+                            <small>{isCurrentUser ? "Tú" : memberLabel}</small>
+                          </div>
+                          {user && !isCurrentUser && (
+                            <button
+                              className="participant-friend-action"
+                              type="button"
+                              disabled={isFriend}
+                              onClick={() => void addParticipantFriend(user)}
+                            >
+                              {isFriend ? "Amigo" : "Agregar amigo"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <span>Archivo</span>
