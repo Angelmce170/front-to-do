@@ -10,7 +10,7 @@ export const emptyProjectForm: ProjectForm = {
 export const emptyTaskForm: ProjectTaskForm = {
   title: "",
   description: "",
-  assignedTo: "",
+  assigneeIds: [],
   dueAt: "",
 };
 

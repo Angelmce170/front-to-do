@@ -89,6 +89,10 @@ function activityMonthLabel(key: string) {
   return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
+function currentTimeMs() {
+  return Date.now();
+}
+
 const projectViewLabels = {
   overview: "Actividad",
   tasks: "Tareas",
@@ -129,7 +133,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteFriendIds, setInviteFriendIds] = useState<string[]>([]);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [chatOpen, setChatOpen] = useState(false);
   const [chatScope, setChatScope] = useState<ChatScope>("group");
   const [chatTo, setChatTo] = useState("");
@@ -144,6 +148,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const activityRef = useRef(0);
   const cursorPresenceRef = useRef(0);
   const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const noteTypingRef = useRef<Record<string, number>>({});
   const selectedProjectIdRef = useRef("");
   const selectedProjectStatusRef = useRef("");
   const currentUserRef = useRef<UserMini | null>(null);
@@ -245,6 +250,18 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const remoteCursors = currentViewPresence.filter(
     (presence) => typeof presence.cursorX === "number" && typeof presence.cursorY === "number"
   );
+  const notePresenceByTask = useMemo(() => {
+    const typing: Record<string, UserMini[]> = {};
+
+    for (const presence of visiblePresence) {
+      if (!presence.user || !presence.area.startsWith("note:")) continue;
+
+      const taskId = presence.area.slice(5);
+      typing[taskId] = [...(typing[taskId] || []), presence.user];
+    }
+
+    return typing;
+  }, [visiblePresence]);
   const activityItems = useMemo(
     () => [...(selectedProject?.activity || [])].reverse(),
     [selectedProject]
@@ -283,6 +300,20 @@ export default function ProjectsPanel({ currentUser }: Props) {
     const bTime = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
     return aTime - bTime;
   });
+
+  function taskAssignees(task: ProjectTask): UserMini[] {
+    const users = task.assignees?.length ? task.assignees : task.assignedTo ? [task.assignedTo] : [];
+    return users.filter((user): user is UserMini => Boolean(user?.id));
+  }
+
+  function toggleTaskAssignee(userId: string, checked: boolean) {
+    setTaskForm((current) => ({
+      ...current,
+      assigneeIds: checked
+        ? [...new Set([...current.assigneeIds, userId])]
+        : current.assigneeIds.filter((id) => id !== userId),
+    }));
+  }
 
   function selectProject(projectId: string) {
     setSelectedId((current) => (current === projectId ? "" : projectId));
@@ -366,7 +397,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
   function pingActivity(area: string, action: string) {
     if (!selectedProject || selectedProject.myStatus !== "active") return;
-    const now = Date.now();
+    const now = currentTimeMs();
     if (now - activityRef.current < 3000) return;
 
     activityRef.current = now;
@@ -412,7 +443,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     };
     lastCursorRef.current = cursor;
 
-    const now = Date.now();
+    const now = currentTimeMs();
     if (now - cursorPresenceRef.current < (useRealtimePresence ? 80 : 280)) return;
 
     cursorPresenceRef.current = now;
@@ -424,7 +455,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
     if (chatScope === "direct" && !chatTo) return;
 
     const area = chatScope === "group" ? "chat:group" : `chat:direct:${chatTo}`;
-    const now = Date.now();
+    const now = currentTimeMs();
     if (now - (typingRef.current[area] || 0) < 1500) return;
 
     typingRef.current[area] = now;
@@ -705,12 +736,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
   async function createTask(event: ProjectFormEvent) {
     event.preventDefault();
-    if (!selectedProject || !taskForm.title.trim()) return;
+    if (!selectedProject || !taskForm.title.trim() || !taskForm.assigneeIds.length) return;
 
     const { data } = await api.post(`/projects/${selectedProject._id}/tasks`, {
       title: taskForm.title,
       description: taskForm.description,
-      assignedTo: taskForm.assignedTo,
+      assigneeIds: taskForm.assigneeIds,
       dueAt: fromDateInput(taskForm.dueAt),
     });
     applyProject(projectFromResponse(data.project));
@@ -724,16 +755,45 @@ export default function ProjectsPanel({ currentUser }: Props) {
     applyProject(projectFromResponse(data.project));
   }
 
-  async function addComment(event: ProjectFormEvent, task: ProjectTask) {
+  function pingTaskNoteTyping(task: ProjectTask) {
+    if (!selectedProject || selectedProject.myStatus !== "active" || !currentUser) return;
+    const now = currentTimeMs();
+    if (now - (noteTypingRef.current[task._id] || 0) < 1200) return;
+
+    noteTypingRef.current[task._id] = now;
+    const area = `note:${task._id}`;
+    const action = `escribiendo una nota en ${task.title}`;
+    const sentRealtime = publishRealtimeProjectPresence({
+      projectId: selectedProject._id,
+      user: currentUser,
+      area,
+      action,
+      cursor: null,
+    });
+
+    if (!sentRealtime) {
+      api.post(`/projects/${selectedProject._id}/activity`, { area, action }).catch(() => {});
+    }
+  }
+
+  async function addTaskNote(event: ProjectFormEvent, task: ProjectTask) {
     event.preventDefault();
     if (!selectedProject) return;
 
-    const message = commentDrafts[task._id]?.trim();
+    const message = noteDrafts[task._id]?.trim();
     if (!message) return;
 
-    const { data } = await api.post(`/projects/${selectedProject._id}/tasks/${task._id}/comments`, { message });
+    const { data } = await api.post(`/projects/${selectedProject._id}/tasks/${task._id}/notes`, { message });
     applyProject(projectFromResponse(data.project));
-    setCommentDrafts((current) => ({ ...current, [task._id]: "" }));
+    setNoteDrafts((current) => ({ ...current, [task._id]: "" }));
+    publishViewPresence(lastCursorRef.current);
+  }
+
+  async function deleteTaskNote(task: ProjectTask, noteId: string) {
+    if (!selectedProject) return;
+
+    const { data } = await api.delete(`/projects/${selectedProject._id}/tasks/${task._id}/notes/${noteId}`);
+    applyProject(projectFromResponse(data.project));
   }
 
   async function sendMessage(event: ProjectFormEvent) {
@@ -1055,20 +1115,36 @@ export default function ProjectsPanel({ currentUser }: Props) {
                         />
                       </label>
                       <div className="assignment-row">
-                        <label className="field">
-                          <span>Asignar a</span>
-                          <select
-                            value={taskForm.assignedTo}
-                            onChange={(event) => setTaskForm({ ...taskForm, assignedTo: event.target.value })}
-                          >
-                            <option value="">Selecciona usuario</option>
-                            {activeMembers.map((member) => (
-                              <option key={member.user?.id} value={member.user?.id}>
-                                {member.user?.name} - {member.user?.email}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <div className="field">
+                          <span>Responsables</span>
+                          <div className="assignee-picker">
+                            {activeMembers.map((member) => {
+                              const user = member.user;
+                              if (!user) return null;
+
+                              return (
+                                <label key={user.id} className="assignee-option">
+                                  <input
+                                    type="checkbox"
+                                    checked={taskForm.assigneeIds.includes(user.id)}
+                                    onChange={(event) => toggleTaskAssignee(user.id, event.target.checked)}
+                                  />
+                                  <span
+                                    className="participant-avatar"
+                                    style={{ backgroundColor: user.avatarColor || "#2a8b7b" }}
+                                    aria-hidden="true"
+                                  >
+                                    {user.name.trim().charAt(0).toUpperCase() || "U"}
+                                  </span>
+                                  <span>
+                                    <strong>{user.name}</strong>
+                                    <small>{user.email}</small>
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
                         <label className="field">
                           <span>Fecha</span>
                           <input
@@ -1084,7 +1160,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
 
                   <div className="project-task-list">
                     {selectedProject.tasks.map((task) => {
-                      const canChangeStatus = task.assignedTo?.id === currentUser?.id;
+                      const assignees = taskAssignees(task);
+                      const canChangeStatus = assignees.some((user) => user?.id === currentUser?.id);
+                      const canUseNotes = Boolean(task.canWriteNotes || selectedProject.isLeader || canChangeStatus);
+                      const taskNotePresence = notePresenceByTask[task._id] || [];
                       return (
                         <article key={task._id} className="project-card project-task-item">
                           <div className="task-row-head">
@@ -1097,10 +1176,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                             </span>
                           </div>
                           <div className="task-meta-line">
-                            <span>
-                              Asignado a {task.assignedTo?.name || "Sin asignar"}
-                              {task.assignedTo?.email ? ` - ${task.assignedTo.email}` : ""}
-                            </span>
+                            <span>Responsables: {assignees.length ? assignees.map((user) => `${user.name} (${user.email})`).join(", ") : "Sin asignar"}</span>
                             <span>{formatDate(task.dueAt)}</span>
                           </div>
                           {canChangeStatus && (
@@ -1117,26 +1193,75 @@ export default function ProjectsPanel({ currentUser }: Props) {
                               ))}
                             </div>
                           )}
-                          <div className="comments-box">
-                            {(task.comments || []).map((comment) => (
-                              <p key={comment._id}>
-                                <strong>{comment.author?.name || "Usuario"}:</strong> {comment.message}
-                              </p>
-                            ))}
-                            {selectedProject.myStatus === "active" && (
-                              <form onSubmit={(event) => void addComment(event, task)}>
-                                <input
-                                  value={commentDrafts[task._id] || ""}
-                                  onChange={(event) =>
-                                    setCommentDrafts((current) => ({ ...current, [task._id]: event.target.value }))
-                                  }
-                                  onFocus={() => pingActivity("comentarios", `comentando en ${task.title}`)}
-                                  placeholder="Escribe un comentario"
-                                />
-                                <button className="btn btn-compact">Enviar</button>
-                              </form>
-                            )}
-                          </div>
+                          {canUseNotes && (
+                            <div className="task-notes-box">
+                              <div className="task-notes-head">
+                                <strong>Notas</strong>
+                                <span>{(task.notes || []).length} guardadas</span>
+                              </div>
+
+                              <div className="task-notes-list">
+                                {(task.notes || []).map((note) => {
+                                  const canDeleteNote = selectedProject.isLeader || note.author?.id === currentUser?.id;
+
+                                  return (
+                                    <article key={note._id} className="task-note-item">
+                                      <span
+                                        className="participant-avatar"
+                                        style={{ backgroundColor: note.author?.avatarColor || "#2a8b7b" }}
+                                        aria-hidden="true"
+                                      >
+                                        {note.author?.name?.trim().charAt(0).toUpperCase() || "U"}
+                                      </span>
+                                      <div>
+                                        <div className="task-note-meta">
+                                          <strong>{note.author?.name || "Usuario"}</strong>
+                                          <small>{formatDate(note.createdAt)}</small>
+                                        </div>
+                                        <p>{note.message}</p>
+                                      </div>
+                                      {canDeleteNote && (
+                                        <button
+                                          className="note-delete-button"
+                                          type="button"
+                                          onClick={() => void deleteTaskNote(task, note._id)}
+                                        >
+                                          Borrar
+                                        </button>
+                                      )}
+                                    </article>
+                                  );
+                                })}
+                                {!task.notes?.length && <p className="task-note-empty">Sin notas todavía.</p>}
+                              </div>
+
+                              {taskNotePresence.length > 0 && (
+                                <div className="note-typing-strip">
+                                  {taskNotePresence.map((user) => (
+                                    <span key={user.id} style={{ "--note-color": user.avatarColor || "#2a8b7b" } as CSSProperties}>
+                                      {user.name} está escribiendo
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {selectedProject.myStatus === "active" && (
+                                <form className="task-note-form" onSubmit={(event) => void addTaskNote(event, task)}>
+                                  <textarea
+                                    value={noteDrafts[task._id] || ""}
+                                    onChange={(event) => {
+                                      setNoteDrafts((current) => ({ ...current, [task._id]: event.target.value }));
+                                      pingTaskNoteTyping(task);
+                                    }}
+                                    onFocus={() => pingTaskNoteTyping(task)}
+                                    placeholder="Escribe una nota para esta tarea"
+                                    rows={2}
+                                  />
+                                  <button className="btn btn-compact">Guardar nota</button>
+                                </form>
+                              )}
+                            </div>
+                          )}
                         </article>
                       );
                     })}
@@ -1152,7 +1277,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                     <div key={task._id} className="schedule-item">
                       <span>{formatDate(task.dueAt)}</span>
                       <strong>{task.title}</strong>
-                      <small>{task.assignedTo?.name || "Sin asignar"} · {task.status}</small>
+                      <small>{taskAssignees(task).map((user) => user.name).join(", ") || "Sin asignar"} · {task.status}</small>
                     </div>
                   ))}
                   {!sortedSchedule.length && <p>No hay fechas para ordenar.</p>}

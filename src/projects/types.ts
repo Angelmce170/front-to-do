@@ -27,14 +27,25 @@ export type ProjectComment = {
   createdAt: string;
 };
 
+export type ProjectNote = {
+  _id: string;
+  author: UserMini | null;
+  message: string;
+  createdAt: string;
+};
+
 export type ProjectTask = {
   _id: string;
   title: string;
   description?: string;
   assignedTo: UserMini | null;
+  assignees?: UserMini[];
   dueAt?: string | null;
   status: "Pendiente" | "En Progreso" | "Completada";
   comments?: ProjectComment[];
+  notes?: ProjectNote[];
+  canViewNotes?: boolean;
+  canWriteNotes?: boolean;
 };
 
 export type ProjectMessage = {
@@ -103,7 +114,7 @@ export type ProjectForm = {
 export type ProjectTaskForm = {
   title: string;
   description: string;
-  assignedTo: string;
+  assigneeIds: string[];
   dueAt: string;
 };
 

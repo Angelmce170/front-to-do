@@ -1469,6 +1469,52 @@ button { letter-spacing: 0; }
   gap: 12px;
 }
 .task-assignment { display: grid; gap: 12px; }
+.assignee-picker {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+.assignee-option {
+  display: grid;
+  grid-template-columns: auto 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+.assignee-option input { width: 16px; height: 16px; }
+.participant-avatar {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+.assignee-option > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.assignee-option strong,
+.assignee-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assignee-option strong { color: #172033; font-size: 13px; }
+.assignee-option small { color: #718096; font-size: 11px; font-weight: 700; }
 .project-task-list { display: grid; gap: 10px; }
 .project-task-item { display: grid; gap: 12px; }
 .task-row-head {
@@ -1520,6 +1566,92 @@ button { letter-spacing: 0; }
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
+.task-notes-box {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e7ecf2;
+}
+.task-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.task-notes-head strong { color: #172033; }
+.task-notes-head span {
+  color: #718096;
+  font-size: 11px;
+  font-weight: 800;
+}
+.task-notes-list {
+  display: grid;
+  gap: 8px;
+}
+.task-note-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+.task-note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.task-note-meta strong {
+  color: #172033;
+  font-size: 13px;
+}
+.task-note-meta small {
+  color: #8a95a4;
+  font-size: 11px;
+  font-weight: 700;
+}
+.task-note-item p,
+.task-note-empty {
+  margin: 3px 0 0;
+  color: #526175;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.note-delete-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #fff0ee;
+  color: #a53b32;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.note-typing-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.note-typing-strip span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: color-mix(in srgb, var(--note-color, #2a8b7b) 16%, #ffffff);
+  color: var(--note-color, #2a8b7b);
+  font-size: 11px;
+  font-weight: 900;
+}
+.task-note-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.task-note-form textarea { min-height: 46px; resize: vertical; }
 .schedule-card { display: grid; gap: 10px; }
 .schedule-item {
   position: relative;
@@ -1992,6 +2124,7 @@ button { letter-spacing: 0; }
   .share-box img { width: 96px; height: 96px; }
   .invite-row,
   .comments-box form,
+  .task-note-form,
   .chat-panel form,
   .search-row {
     grid-template-columns: 1fr;
