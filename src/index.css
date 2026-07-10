@@ -1551,6 +1551,61 @@ button { letter-spacing: 0; }
   font-size: 12px;
   font-weight: 800;
 }
+.document-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+.document-toolbar-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding-right: 8px;
+  border-right: 1px solid #dde5ee;
+}
+.document-toolbar-group:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+.document-toolbar button,
+.document-toolbar select,
+.document-toolbar input[type="color"] {
+  min-height: 32px;
+  border: 1px solid #d6dde7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 850;
+}
+.document-toolbar button {
+  padding: 0 10px;
+  cursor: pointer;
+}
+.document-toolbar select {
+  padding: 0 8px;
+}
+.document-toolbar input[type="color"] {
+  width: 34px;
+  padding: 3px;
+}
+.document-toolbar button:hover,
+.document-toolbar select:hover,
+.document-toolbar input[type="color"]:hover {
+  border-color: #2a8b7b;
+}
+.document-export-actions {
+  margin-left: auto;
+}
+.document-export-actions button {
+  background: #172033;
+  color: #ffffff;
+}
 .document-save-state {
   border-radius: 999px;
   padding: 6px 10px;
@@ -1616,6 +1671,38 @@ button { letter-spacing: 0; }
 .document-editor-surface {
   position: relative;
 }
+.rich-document-editor {
+  min-height: 440px;
+  padding: 26px;
+  border: 1px solid #d6dde7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  line-height: 1.6;
+  outline: 0;
+  overflow-wrap: anywhere;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .55);
+}
+.rich-document-editor:focus {
+  border-color: #2a8b7b;
+  box-shadow: 0 0 0 4px rgba(42, 139, 123, .12);
+}
+.rich-document-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #8a95a4;
+}
+.rich-document-editor h2,
+.rich-document-editor h3 {
+  margin: 8px 0 12px;
+  color: #172033;
+}
+.rich-document-editor p {
+  margin: 0 0 12px;
+}
+.rich-document-editor ul,
+.rich-document-editor ol {
+  margin: 0 0 12px 22px;
+}
 .document-floating-presence {
   position: absolute;
   top: 10px;
@@ -1659,6 +1746,50 @@ button { letter-spacing: 0; }
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.document-cursor-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.document-cursor-bubble {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  padding: 4px 8px 4px 4px;
+  border-left: 2px solid #2a8b7b;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .98);
+  color: #172033;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 10px 26px rgba(23, 32, 51, .18);
+  transform: translateY(-4px);
+  white-space: nowrap;
+}
+.document-cursor-bubble::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -22px;
+  width: 2px;
+  height: 24px;
+  background: currentColor;
+  opacity: .7;
+}
+.document-cursor-bubble b {
+  display: inline-grid;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 10px;
+  font-style: normal;
 }
 .document-editor-foot {
   display: flex;
@@ -2055,6 +2186,13 @@ button { letter-spacing: 0; }
   .live-edit-bubble {
     max-width: 100%;
   }
+  .document-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .document-toolbar-group {
+    flex: 0 0 auto;
+  }
   .assignment-row { grid-template-columns: 1fr; }
 }
 
@@ -2156,6 +2294,10 @@ button { letter-spacing: 0; }
   .document-editor-field textarea {
     min-height: 300px;
   }
+  .rich-document-editor {
+    min-height: 340px;
+    padding: 18px;
+  }
   .document-floating-presence {
     position: static;
     justify-items: stretch;
@@ -2164,6 +2306,11 @@ button { letter-spacing: 0; }
   }
   .document-floating-presence span {
     width: 100%;
+  }
+  .document-cursor-bubble {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .activity-filters {
     grid-template-columns: 1fr;
