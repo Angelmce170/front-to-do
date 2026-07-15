@@ -48,7 +48,7 @@ export type ProjectTask = {
   assignedTo: UserMini | null;
   assignees?: UserMini[];
   dueAt?: string | null;
-  status: "Pendiente" | "En Progreso" | "Completada";
+  status: "Pendiente" | "En proceso" | "En Progreso" | "Completada";
   comments?: ProjectComment[];
   notes?: ProjectNote[];
   canViewNotes?: boolean;

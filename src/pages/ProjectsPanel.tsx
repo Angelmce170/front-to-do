@@ -112,9 +112,18 @@ const projectTaskFilters: [ProjectTaskFilter, string][] = [
   ["active", "Activas"],
   ["completed", "Hechas"],
 ];
+const projectTaskStatuses = ["Pendiente", "En proceso", "Completada"] as const;
 const criticalOverdueMs = 5 * 24 * 60 * 60 * 1000;
 
 const emptyRealtimeNoteDrafts: Record<string, ProjectNoteDraft[]> = {};
+
+function projectTaskStatus(status: ProjectTask["status"]) {
+  return status === "En Progreso" ? "En proceso" : status;
+}
+
+function projectTaskStatusClass(status: ProjectTask["status"]) {
+  return projectTaskStatus(status).toLowerCase().replace(/\s/g, "-");
+}
 
 function clearBackendProjectPresence(projectId: string) {
   const token = localStorage.getItem("token");
@@ -339,9 +348,9 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const projectTaskStats = useMemo(() => {
     const tasks = selectedProject?.tasks || [];
     const total = tasks.length;
-    const done = tasks.filter((task) => task.status === "Completada").length;
-    const inProgress = tasks.filter((task) => task.status === "En Progreso").length;
-    const pending = tasks.filter((task) => task.status === "Pendiente").length;
+    const done = tasks.filter((task) => projectTaskStatus(task.status) === "Completada").length;
+    const inProgress = tasks.filter((task) => projectTaskStatus(task.status) === "En proceso").length;
+    const pending = tasks.filter((task) => projectTaskStatus(task.status) === "Pendiente").length;
     const progress = total ? Math.round((done / total) * 100) : 0;
 
     return { total, pending, inProgress, done, progress };
@@ -358,12 +367,12 @@ export default function ProjectsPanel({ currentUser }: Props) {
         !query ||
         task.title.toLowerCase().includes(query) ||
         (task.description || "").toLowerCase().includes(query) ||
-        task.status.toLowerCase().includes(query) ||
+        projectTaskStatus(task.status).toLowerCase().includes(query) ||
         assigneeText.includes(query);
       const matchesFilter =
         projectTaskFilter === "all" ||
-        (projectTaskFilter === "active" && task.status !== "Completada") ||
-        (projectTaskFilter === "completed" && task.status === "Completada");
+        (projectTaskFilter === "active" && projectTaskStatus(task.status) !== "Completada") ||
+        (projectTaskFilter === "completed" && projectTaskStatus(task.status) === "Completada");
 
       return matchesText && matchesFilter;
     });
@@ -375,7 +384,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   }
 
   function projectTaskDeadlineClass(task: ProjectTask) {
-    if (!deadlineNow || task.status === "Completada" || !task.dueAt) return "";
+    if (!deadlineNow || projectTaskStatus(task.status) === "Completada" || !task.dueAt) return "";
 
     const dueTime = new Date(task.dueAt).getTime();
     if (Number.isNaN(dueTime)) return "";
@@ -1292,7 +1301,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                   <section className="summary-strip project-task-summary" aria-label="Resumen de tareas del proyecto">
                     <div><strong>{projectTaskStats.total}</strong><span>Total</span></div>
                     <div><strong>{projectTaskStats.pending}</strong><span>Pendientes</span></div>
-                    <div><strong>{projectTaskStats.inProgress}</strong><span>En Progreso</span></div>
+                    <div><strong>{projectTaskStats.inProgress}</strong><span>En proceso</span></div>
                     <div><strong>{projectTaskStats.done}</strong><span>Completadas</span></div>
                     <div className="progress-summary">
                       <span>Progreso</span>
@@ -1496,8 +1505,8 @@ export default function ProjectsPanel({ currentUser }: Props) {
                               <p>{task.description || "Sin descripción"}</p>
                             </div>
                             <div className="project-task-actions">
-                              <span className={`task-status ${task.status.toLowerCase().replace(/\s/g, "-")}`}>
-                                {task.status}
+                              <span className={`task-status ${projectTaskStatusClass(task.status)}`}>
+                                {projectTaskStatus(task.status)}
                               </span>
                               {selectedProject.isLeader && selectedProject.myStatus === "active" && (
                                 <div className="task-actions">
@@ -1521,10 +1530,10 @@ export default function ProjectsPanel({ currentUser }: Props) {
                           </div>
                           {canChangeStatus && (
                             <div className="task-status-actions">
-                              {(["Pendiente", "En Progreso", "Completada"] as const).map((status) => (
+                              {projectTaskStatuses.map((status) => (
                                 <button
                                   key={status}
-                                  className={task.status === status ? "chip active" : "chip"}
+                                  className={projectTaskStatus(task.status) === status ? "chip active" : "chip"}
                                   type="button"
                                   onClick={() => void updateTaskStatus(task, status)}
                                 >
@@ -1644,7 +1653,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                     <div key={task._id} className="schedule-item">
                       <span>{formatDate(task.dueAt)}</span>
                       <strong>{task.title}</strong>
-                      <small>{taskAssignees(task).map((user) => user.name).join(", ") || "Sin asignar"} · {task.status}</small>
+                      <small>{taskAssignees(task).map((user) => user.name).join(", ") || "Sin asignar"} · {projectTaskStatus(task.status)}</small>
                     </div>
                   ))}
                   {!sortedSchedule.length && <p>No hay fechas para ordenar.</p>}

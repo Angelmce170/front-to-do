@@ -13,7 +13,7 @@ import { syncNow } from "../offline/sync";
 import NotificationMenu from "../notifications/NotificationMenu";
 import ProjectsPanel from "./ProjectsPanel";
 
-type Status = "Pendiente" | "En Progreso" | "Completada";
+type Status = "Pendiente" | "En proceso" | "En Progreso" | "Completada";
 type Filter = "all" | "active" | "completed";
 type Task = {
   _id: string;
@@ -36,7 +36,7 @@ type UserProfile = {
   avatarColor?: string;
 };
 
-const STATUSES: Status[] = ["Pendiente", "En Progreso", "Completada"];
+const STATUSES: Status[] = ["Pendiente", "En proceso", "Completada"];
 const FILTERS: [Filter, string][] = [
   ["all", "Todas"],
   ["active", "Activas"],
@@ -61,6 +61,8 @@ const remindersChangedEvent = "todo-pwa-reminders-changed";
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 const isStatus = (value: unknown): value is Status =>
   typeof value === "string" && STATUSES.includes(value as Status);
+const normalizeStatus = (value: unknown): Status =>
+  value === "En Progreso" ? "En proceso" : isStatus(value) ? value : "Pendiente";
 const profileColor = (value: unknown) =>
   typeof value === "string" && avatarColors.includes(value) ? value : defaultAvatarColor;
 const record = (value: unknown): Record<string, unknown> =>
@@ -92,7 +94,7 @@ function normalizeTask(value: unknown): Task {
     _id: String(task._id ?? task.id ?? crypto.randomUUID()),
     title: text(task.title, "(sin título)"),
     description: text(task.description),
-    status: isStatus(task.status) ? task.status : "Pendiente",
+    status: normalizeStatus(task.status),
     reminderAt: reminderDate && !Number.isNaN(reminderDate.getTime()) ? reminderDate.toISOString() : null,
     clienteId: task.clienteId ? String(task.clienteId) : undefined,
     createdAt: task.createdAt ? String(task.createdAt) : undefined,
@@ -543,7 +545,7 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter((task) => task.status === "Completada").length;
-    const inProgress = tasks.filter((task) => task.status === "En Progreso").length;
+    const inProgress = tasks.filter((task) => task.status === "En proceso").length;
     const pending = tasks.filter((task) => task.status === "Pendiente").length;
 
     return { total, pending, inProgress, done };
@@ -708,7 +710,7 @@ export default function Dashboard() {
         <section className="summary-strip" aria-label="Resumen de tareas">
           <div><strong>{stats.total}</strong><span>Total</span></div>
           <div><strong>{stats.pending}</strong><span>Pendientes</span></div>
-          <div><strong>{stats.inProgress}</strong><span>En Progreso</span></div>
+          <div><strong>{stats.inProgress}</strong><span>En proceso</span></div>
           <div><strong>{stats.done}</strong><span>Completadas</span></div>
           <div className="progress-summary">
             <span>Progreso</span>

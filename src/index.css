@@ -872,6 +872,7 @@ button { letter-spacing: 0; }
   box-shadow: 0 8px 22px rgba(25,37,54,.08);
 }
 .status-line { position: absolute; inset: 0 auto 0 0; width: 4px; background: #e0a43b; }
+.status-en-proceso,
 .status-en-progreso { background: #4386c6; }
 .status-completada { background: #2a8b7b; }
 .status-select { padding: 8px 10px; background: #f7f9fc; font-size: 12px; font-weight: 700; }
@@ -1566,6 +1567,7 @@ button { letter-spacing: 0; }
   font-weight: 800;
   white-space: nowrap;
 }
+.task-status.en-proceso,
 .task-status.en-progreso { background: #e4f1fb; color: #1f5f87; }
 .task-status.completada { background: #e4f2ef; color: #1f6c60; }
 .project-task-overdue-warning .task-status {
