@@ -1352,7 +1352,7 @@ button { letter-spacing: 0; }
 }
 .share-box {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   padding: 16px;
@@ -1366,13 +1366,6 @@ button { letter-spacing: 0; }
   overflow-wrap: anywhere;
   color: #637083;
   font-weight: 650;
-}
-.share-box img {
-  width: 82px;
-  height: 82px;
-  border: 1px solid #dce3ed;
-  border-radius: 6px;
-  background: #ffffff;
 }
 .share-actions {
   display: grid;
@@ -2211,7 +2204,6 @@ button { letter-spacing: 0; }
   .activity-filters {
     grid-template-columns: 1fr;
   }
-  .share-box img { width: 96px; height: 96px; }
   .invite-row,
   .comments-box form,
   .task-note-form,

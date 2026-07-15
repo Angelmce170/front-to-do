@@ -71,7 +71,7 @@ export default function ProjectCreateForm({
             value={form.participantLimit}
             onChange={(participantLimit) => onFormChange({ ...form, participantLimit })}
           />
-          <p className="inline-message">Después de crearlo podrás invitar por correo, link, QR o amigos.</p>
+          <p className="inline-message">Después de crearlo podrás invitar por correo, link o amigos.</p>
         </>
       )}
       <label className="field">

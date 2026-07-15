@@ -25,27 +25,17 @@ export default function ProjectInviteBox({
   onInviteByEmail,
   onInviteFriends,
 }: Props) {
-  const shareText = `Te invito al proyecto "${project.title}" en To-Do PWA: ${joinLink}`;
-  const whatsAppUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-
   return (
     <div className="share-box">
       <div className="share-link-block">
         <p className="eyebrow">INVITACIÓN</p>
-        <strong>Link y QR del proyecto</strong>
+        <strong>Link del proyecto</strong>
         <small>{joinLink}</small>
       </div>
-      <img
-        src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinLink)}`}
-        alt="QR de invitación"
-      />
       <div className="share-actions">
         <button className="btn btn-compact" type="button" onClick={onCopyLink}>
           Copiar link
         </button>
-        <a className="btn btn-primary btn-compact" href={whatsAppUrl} target="_blank" rel="noreferrer">
-          WhatsApp
-        </a>
       </div>
 
       <div className="invite-methods">
