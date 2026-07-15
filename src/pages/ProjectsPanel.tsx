@@ -112,6 +112,7 @@ const projectTaskFilters: [ProjectTaskFilter, string][] = [
   ["active", "Activas"],
   ["completed", "Hechas"],
 ];
+const criticalOverdueMs = 5 * 24 * 60 * 60 * 1000;
 
 const emptyRealtimeNoteDrafts: Record<string, ProjectNoteDraft[]> = {};
 
@@ -159,6 +160,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [projectTaskSearch, setProjectTaskSearch] = useState("");
   const [projectTaskFilter, setProjectTaskFilter] = useState<ProjectTaskFilter>("all");
+  const [deadlineNow, setDeadlineNow] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatScope, setChatScope] = useState<ChatScope>("group");
   const [chatTo, setChatTo] = useState("");
@@ -369,6 +371,18 @@ export default function ProjectsPanel({ currentUser }: Props) {
   function taskAssignees(task: ProjectTask): UserMini[] {
     const users = task.assignees?.length ? task.assignees : task.assignedTo ? [task.assignedTo] : [];
     return users.filter((user): user is UserMini => Boolean(user?.id));
+  }
+
+  function projectTaskDeadlineClass(task: ProjectTask) {
+    if (!deadlineNow || task.status === "Completada" || !task.dueAt) return "";
+
+    const dueTime = new Date(task.dueAt).getTime();
+    if (Number.isNaN(dueTime)) return "";
+
+    const overdueMs = deadlineNow - dueTime;
+    if (overdueMs <= 0) return "";
+
+    return overdueMs > criticalOverdueMs ? "project-task-overdue-critical" : "project-task-overdue-warning";
   }
 
   function toggleTaskAssignee(userId: string, checked: boolean) {
@@ -615,6 +629,14 @@ export default function ProjectsPanel({ currentUser }: Props) {
     updateMobile();
     query.addEventListener("change", updateMobile);
     return () => query.removeEventListener("change", updateMobile);
+  }, []);
+
+  useEffect(() => {
+    const updateNow = () => setDeadlineNow(Date.now());
+
+    updateNow();
+    const timer = window.setInterval(updateNow, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1384,7 +1406,7 @@ export default function ProjectsPanel({ currentUser }: Props) {
                       const liveNoteDrafts = realtimeNoteDrafts[task._id] || [];
                       const isEditingTask = selectedProject.isLeader && editingTaskId === task._id;
                       return (
-                        <article key={task._id} className="project-card project-task-item">
+                        <article key={task._id} className={`project-card project-task-item ${projectTaskDeadlineClass(task)}`}>
                           {isEditingTask ? (
                             <form className="task-edit-form" onSubmit={(event) => void saveTaskEdit(event, task)}>
                               <div className="task-edit-head">

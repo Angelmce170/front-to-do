@@ -1520,6 +1520,16 @@ button { letter-spacing: 0; }
 .project-task-browser .toolbar { margin-bottom: 0; }
 .project-task-summary { margin-bottom: 0; }
 .project-task-item { display: grid; gap: 12px; }
+.project-task-item.project-task-overdue-warning {
+  border-color: #edc86b;
+  background: #fff9e8;
+  box-shadow: 0 6px 18px rgba(184, 130, 18, .12);
+}
+.project-task-item.project-task-overdue-critical {
+  border-color: #eca19b;
+  background: #fff2f0;
+  box-shadow: 0 6px 18px rgba(168, 58, 52, .12);
+}
 .project-task-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1565,6 +1575,14 @@ button { letter-spacing: 0; }
 }
 .task-status.en-progreso { background: #e4f1fb; color: #1f5f87; }
 .task-status.completada { background: #e4f2ef; color: #1f6c60; }
+.project-task-overdue-warning .task-status {
+  background: #ffe8a3;
+  color: #80530d;
+}
+.project-task-overdue-critical .task-status {
+  background: #ffd8d4;
+  color: #a83a34;
+}
 .task-meta-line {
   display: flex;
   flex-wrap: wrap;
