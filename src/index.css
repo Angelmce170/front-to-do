@@ -685,7 +685,7 @@ button { letter-spacing: 0; }
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(110px, 1fr)) minmax(210px, 1.5fr);
+  grid-template-columns: repeat(4, minmax(104px, 1fr)) minmax(210px, 1.5fr);
   margin-bottom: 20px;
   background: #ffffff;
   border: 1px solid #dce3ed;
@@ -2066,9 +2066,9 @@ button { letter-spacing: 0; }
     justify-content: flex-start;
   }
   .dashboard-header { padding-inline: 16px; }
-  .summary-strip { grid-template-columns: repeat(3, 1fr); }
+  .summary-strip { grid-template-columns: repeat(2, 1fr); }
   .summary-strip > div { min-height: 72px; padding: 13px; text-align: center; }
-  .summary-strip > div:nth-child(3) { border-right: 0; }
+  .summary-strip > div:nth-child(2n) { border-right: 0; }
   .summary-strip .progress-summary { grid-column: 1 / -1; border-top: 1px solid #e7ecf2; }
   .add-grid { grid-template-columns: 1fr; }
   .section-heading {

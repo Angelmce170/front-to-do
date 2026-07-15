@@ -543,7 +543,10 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter((task) => task.status === "Completada").length;
-    return { total, done, pending: total - done };
+    const inProgress = tasks.filter((task) => task.status === "En Progreso").length;
+    const pending = tasks.filter((task) => task.status === "Pendiente").length;
+
+    return { total, pending, inProgress, done };
   }, [tasks]);
 
   const profileName = profile?.name || profile?.email || "Usuario";
@@ -705,6 +708,7 @@ export default function Dashboard() {
         <section className="summary-strip" aria-label="Resumen de tareas">
           <div><strong>{stats.total}</strong><span>Total</span></div>
           <div><strong>{stats.pending}</strong><span>Pendientes</span></div>
+          <div><strong>{stats.inProgress}</strong><span>En Progreso</span></div>
           <div><strong>{stats.done}</strong><span>Completadas</span></div>
           <div className="progress-summary">
             <span>Progreso</span>
